@@ -1,33 +1,24 @@
-import { MongoClient } from "mongodb"
-import dotenv from "dotenv"
-import { fileURLToPath } from "url"
-import { dirname, join } from "path"
+import mysql from 'mysql2';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+// Load environment variables from .env file
+dotenv.config();
 
-dotenv.config({ path: join(__dirname, "..", ".env") })
+// Create connection
+const connection = mysql.createConnection({
+  host: process.env.DB_HOST,  // Use environment variables for credentials
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+});
 
-const Db = process.env.ATLAS_URI
-const client = new MongoClient(Db, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+// Connect to MySQL
+connection.connect((err) => {
+  if (err) {
+    console.error('Database connection failed:', err);
+    return;
+  }
+  console.log('Connected to MySQL');
+});
 
-let _db
-
-export function connectToServer(callback) {
-  client.connect((err, db) => {
-    // Verify we got a good "db" object
-    if (db) {
-      _db = db.db("employees")
-      console.log("Successfully connected to MongoDB.")
-    }
-    return callback(err)
-  })
-}
-
-export function getDb() {
-  return _db
-}
-
+export default connection;
