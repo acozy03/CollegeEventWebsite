@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import connection from "./db/connection.js";  // Import the MySQL connection
-import recordRoutes from "./routes/record.js";
+import recordRoutes from "./routes/backendRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;

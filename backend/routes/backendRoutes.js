@@ -44,6 +44,7 @@ recordRoutes.route("/users/update/:id").post((req, response) => {
 
 // Route to delete a user
 recordRoutes.route("/users/:id").delete((req, response) => {
+  console.log("Received ID to delete:", req.params.id); // Debugging
   const query = "DELETE FROM users WHERE id = ?";
   connection.execute(query, [req.params.id], (err, res) => {
     if (err) {
@@ -54,5 +55,6 @@ recordRoutes.route("/users/:id").delete((req, response) => {
     response.json(res); // Send the result of the delete operation
   });
 });
+
 
 export default recordRoutes;

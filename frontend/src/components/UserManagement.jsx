@@ -16,7 +16,7 @@ export default function UserManagement() {
     try {
       const response = await fetch(`${API_BASE_URL}/users`)
       if (!response.ok) throw new Error("Failed to fetch users")
-      const data = await response.json()
+      const data = await response.json() 
       setUsers(data)
     } catch (err) {
       setError("Failed to fetch users: " + err.message)
@@ -43,7 +43,7 @@ export default function UserManagement() {
     e.preventDefault()
     if (!editingUser) return
     try {
-      const response = await fetch(`${API_BASE_URL}/users/update/${editingUser._id}`, {
+      const response = await fetch(`${API_BASE_URL}/users/update/${editingUser.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editingUser),
@@ -57,6 +57,7 @@ export default function UserManagement() {
   }
 
   const deleteUser = async (id) => {
+    console.log("Deleting user with ID:", id); 
     try {
       const response = await fetch(`${API_BASE_URL}/users/${id}`, { method: "DELETE" })
       if (!response.ok) throw new Error("Failed to delete user")
@@ -116,12 +117,12 @@ export default function UserManagement() {
 
       <ul>
         {users.map((user) => (
-          <li key={user._id}>
+          <li key={user.id}>
             <span>
               {user.name} - {user.email} - {user.role}
             </span>
             <button onClick={() => setEditingUser(user)}>Edit</button>
-            <button onClick={() => deleteUser(user._id)}>Delete</button>
+            <button onClick={() => deleteUser(user.id)}>Delete</button>
           </li>
         ))}
       </ul>
