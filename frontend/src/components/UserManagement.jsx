@@ -69,7 +69,7 @@ export default function UserManagement() {
 
   return (
     <div className="user-management">
-      <h2>User Management</h2>
+      <h2>User Test</h2>
 
       {error && <div className="error">{error}</div>}
 
