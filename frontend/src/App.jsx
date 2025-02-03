@@ -6,7 +6,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>College Event Website</h1>
+        <h1>you did it. you logged in. now turn off the fucking computer and stop working.</h1>
       </header>
       <main>
         <UserManagement />
