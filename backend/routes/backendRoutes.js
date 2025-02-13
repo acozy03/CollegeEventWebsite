@@ -15,7 +15,7 @@ recordRoutes.route("/users").get(authenticate, (req, res) => {
   const query = "SELECT UserID, Name, Email, Role, UniversityID FROM users";
   connection.query(query, (err, results) => {
     if (err) {
-      console.error("Error fetching users:", err);
+      console.error("Error fetching usersfd:", err);
       return res.status(500).json({ error: "Server error" });
     }
     res.json(results);
