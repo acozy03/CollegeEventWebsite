@@ -1,98 +1,125 @@
 import express from "express";
 import connection from "../db/connection.js";
-import bodyParser from 'body-parser';  // Import the MySQL connection
-import bcrypt from "bcryptjs"; 
+import bodyParser from "body-parser"; // Import the MySQL connection
+import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { authenticate  } from "./auth.js";
+import { authenticate } from "./auth.js";
+
+dotenv.config();
 
 const recordRoutes = express.Router();
-recordRoutes.use(bodyParser.json());
-recordRoutes.use(bodyParser.urlencoded( { extended: true}));
-// Route to get all users
 
+// Middleware for parsing JSON and URL-encoded data
+recordRoutes.use(bodyParser.json());
+recordRoutes.use(bodyParser.urlencoded({ extended: true }));
+
+// Helper function to extract the domain from an email
+const getDomainFromEmail = (email) => {
+  const domain = email.split("@")[1]; // Extract the part after "@"
+  if (!domain) throw new Error("Invalid email format");
+  return domain;
+};
+
+// Route to get all users
 recordRoutes.route("/users").get(authenticate, (req, res) => {
-  const query = "SELECT UserID, Name, Email, Role, UniversityID FROM users";
+  const query = "SELECT UserID, FirstName, LastName, Username, Email, Role, UniversityID FROM users";
   connection.query(query, (err, results) => {
     if (err) {
-      console.error("Error fetching usersfd:", err);
+      console.error("Error fetching users:", err);
       return res.status(500).json({ error: "Server error" });
     }
     res.json(results);
   });
 });
 
-recordRoutes.route("/users").get((req, res) => {
-  const query = "SELECT * FROM users"; // MySQL query to get all users
-  connection.query(query, (err, results) => {
-    if (err) {
-      console.error("Error fetching users:", err);
-      return res.status(500).send("Server error");
-    }
-    res.json(results); // Send the results as JSON
-  });
-});
-
-recordRoutes.route("/users/login").post(async (req, response) => {
-  const { Email, Password } = req.body;
-
-  if (!Email || !Password) {
-    return response.status(400).json({ error: "Email and password are required" });
-  }
-
-  const query = "SELECT * FROM users WHERE Email = ?";
-  connection.execute(query, [Email], async (err, results) => {
-    if (err) {
-      console.error("Error fetching user:", err);
-      return response.status(500).json({ error: "Server error" });
-    }
-
-    if (results.length === 0) {
-      return response.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const user = results[0];
-
-    const isMatch = await bcrypt.compare(Password, user.PasswordHash);
-    if (!isMatch) {
-      return response.status(401).json({ error: "Invalid email or password" });
-    }
-
-    const token = jwt.sign({ userId: user.UserID, role: user.Role }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-    response.json({ message: "Login successful", token });
-  });
-});
-
+// Route for user registration (updated to automatically assign Role as "student")
 recordRoutes.route("/users/add").post(async (req, response) => {
-  const { Name, Email, Password, Role, UniversityID } = req.body;
+  const { FirstName, LastName, Username, Email, Password } = req.body;
 
-  if (!Name || !Email || !Password || !Role || !UniversityID) {
+  if (!FirstName || !LastName || !Username || !Email || !Password) {
     return response.status(400).json({ error: "All fields are required" });
   }
 
   try {
+    // Extract the domain from the email
+    const domain = getDomainFromEmail(Email);
+
+    // Check if the domain exists in the universities table
+    const checkDomainQuery = "SELECT UniversityID FROM universities WHERE domain = ?";
+    const [domainResults] = await connection.promise().query(checkDomainQuery, [domain]);
+
+    if (domainResults.length === 0) {
+      return response.status(400).json({ error: "Invalid email domain. Your university is not registered." });
+    }
+
+    const universityID = domainResults[0].UniversityID;
+
+    // Automatically assign the Role as "student"
+    const Role = "student";
+
+    // Hash the password
     const hashedPassword = await bcrypt.hash(Password, 10);
 
-    const query = "INSERT INTO users (Name, Email, PasswordHash, Role, UniversityID) VALUES (?, ?, ?, ?, ?)";
-    connection.execute(query, [Name, Email, hashedPassword, Role, UniversityID], (err, res) => {
-      if (err) {
-        console.error("Error adding user:", err);
-        return response.status(500).json({ error: "Error adding user" });
-      }
-      response.json({ message: "User added successfully", userId: res.insertId });
-    });
+    // Insert the user into the users table with the assigned UniversityID and Role
+    const addUserQuery =
+      "INSERT INTO users (FirstName, LastName, Username, Email, PasswordHash, Role, UniversityID) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    const [addUserResult] = await connection.promise().query(addUserQuery, [
+      FirstName,
+      LastName,
+      Username,
+      Email,
+      hashedPassword,
+      Role,
+      universityID,
+    ]);
+
+    response.json({ message: "User added successfully", userId: addUserResult.insertId });
   } catch (error) {
-    console.error("Error hashing password:", error);
-    return response.status(500).json({ error: "Server error" });
+    console.error("Error adding user:", error);
+    return response.status(500).json({ error: error.message || "Server error" });
   }
+});
+
+// Route for user login (updated to use Username and Password)
+recordRoutes.route("/users/login").post(async (req, response) => {
+  const { Username, Password } = req.body;
+  if (!Username || !Password) {
+    return response.status(400).json({ error: "Username and password are required" });
+  }
+
+  const query = "SELECT * FROM users WHERE Username = ?";
+  connection.execute(query, [Username], async (err, results) => {
+    if (err) {
+      console.error("Error fetching user:", err);
+      return response.status(500).json({ error: "Server error" });
+    }
+    if (results.length === 0) {
+      return response.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const user = results[0];
+    const isMatch = await bcrypt.compare(Password, user.PasswordHash);
+
+    if (!isMatch) {
+      return response.status(401).json({ error: "Invalid username or password" });
+    }
+
+    const token = jwt.sign({ userId: user.UserID, role: user.Role }, process.env.JWT_SECRET, { expiresIn: "1h" });
+    response.json({ message: "Login successful", token });
+  });
 });
 
 // Route to update a user
 recordRoutes.route("/users/update/:id").post((req, response) => {
-  const { name, email, role } = req.body;
-  const query = "UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?";
-  connection.execute(query, [name, email, role, req.params.id], (err, res) => {
+  const { FirstName, LastName, Username, Email, Role } = req.body;
+
+  if (!FirstName || !LastName || !Username || !Email || !Role) {
+    return response.status(400).json({ error: "All fields are required" });
+  }
+
+  const query = "UPDATE users SET FirstName = ?, LastName = ?, Username = ?, Email = ?, Role = ? WHERE UserID = ?";
+  connection.execute(query, [FirstName, LastName, Username, Email, Role, req.params.id], (err, res) => {
     if (err) {
       console.error("Error updating user:", err);
       return response.status(500).send("Error updating user");
@@ -105,7 +132,7 @@ recordRoutes.route("/users/update/:id").post((req, response) => {
 // Route to delete a user
 recordRoutes.route("/users/:id").delete((req, response) => {
   console.log("Received ID to delete:", req.params.id); // Debugging
-  const query = "DELETE FROM users WHERE id = ?";
+  const query = "DELETE FROM users WHERE UserID = ?";
   connection.execute(query, [req.params.id], (err, res) => {
     if (err) {
       console.error("Error deleting user:", err);
@@ -115,6 +142,5 @@ recordRoutes.route("/users/:id").delete((req, response) => {
     response.json(res); // Send the result of the delete operation
   });
 });
-
 
 export default recordRoutes;
