@@ -27,8 +27,16 @@ export default function UserManagement() {
       });
       if (!response.ok) throw new Error("Invalid username or password");
       const data = await response.json();
-      localStorage.setItem("token", data.token); // Store the token in local storage
-      navigate("/dashboard"); // Redirect to the dashboard after successful login
+  
+      // Store the token and user role in local storage
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("role", data.role); // Assuming the backend returns the user's role
+      localStorage.setItem("username", newUser.Username); // Optional: Store the username
+      console.log(data.role); 
+      if(data.role === "Admin") {
+        navigate("/create-event");
+      } 
+      else navigate("/dashboard"); // Redirect to the dashboard after successful login
     } catch (err) {
       setError("Login failed: " + err.message);
     }

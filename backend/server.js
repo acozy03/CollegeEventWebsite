@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import connection from "./db/connection.js";  // Import the MySQL connection
 import recordRoutes from "./routes/backendRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,7 +17,10 @@ app.use(
 );
 
 app.use(express.json());
-app.use("/api", recordRoutes);
+app.use("/api/users", recordRoutes);
+app.use("/api/admin", adminRoutes);
+
+
 
 // Global error handling
 app.use((err, _req, res, _next) => {

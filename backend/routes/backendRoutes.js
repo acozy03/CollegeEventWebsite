@@ -34,7 +34,7 @@ recordRoutes.route("/users").get(authenticate, (req, res) => {
 });
 
 // Route for user registration (updated to automatically assign Role as "student")
-recordRoutes.route("/users/add").post(async (req, response) => {
+recordRoutes.route("/add").post(async (req, response) => {
   const { FirstName, LastName, Username, Email, Password } = req.body;
 
   if (!FirstName || !LastName || !Username || !Email || !Password) {
@@ -82,36 +82,37 @@ recordRoutes.route("/users/add").post(async (req, response) => {
 });
 
 // Route for user login (updated to use Username and Password)
-recordRoutes.route("/users/login").post(async (req, response) => {
+recordRoutes.route("/login").post(async (req, res) => {
   const { Username, Password } = req.body;
+
   if (!Username || !Password) {
-    return response.status(400).json({ error: "Username and password are required" });
+    return res.status(400).json({ error: "Username and password are required" });
   }
 
   const query = "SELECT * FROM users WHERE Username = ?";
   connection.execute(query, [Username], async (err, results) => {
     if (err) {
       console.error("Error fetching user:", err);
-      return response.status(500).json({ error: "Server error" });
+      return res.status(500).json({ error: "Server error" });
     }
+
     if (results.length === 0) {
-      return response.status(401).json({ error: "Invalid username or password" });
+      return res.status(401).json({ error: "Invalid username or password" });
     }
 
     const user = results[0];
     const isMatch = await bcrypt.compare(Password, user.PasswordHash);
 
     if (!isMatch) {
-      return response.status(401).json({ error: "Invalid username or password" });
+      return res.status(401).json({ error: "Invalid username or password" });
     }
 
     const token = jwt.sign({ userId: user.UserID, role: user.Role }, process.env.JWT_SECRET, { expiresIn: "1h" });
-    response.json({ message: "Login successful", token });
+    res.json({ message: "Login successful", token, role: user.Role });
   });
 });
-
 // Route to update a user
-recordRoutes.route("/users/update/:id").post((req, response) => {
+recordRoutes.route("/update/:id").post((req, response) => {
   const { FirstName, LastName, Username, Email, Role } = req.body;
 
   if (!FirstName || !LastName || !Username || !Email || !Role) {
@@ -130,7 +131,7 @@ recordRoutes.route("/users/update/:id").post((req, response) => {
 });
 
 // Route to delete a user
-recordRoutes.route("/users/:id").delete((req, response) => {
+recordRoutes.route("/:id").delete((req, response) => {
   console.log("Received ID to delete:", req.params.id); // Debugging
   const query = "DELETE FROM users WHERE UserID = ?";
   connection.execute(query, [req.params.id], (err, res) => {
