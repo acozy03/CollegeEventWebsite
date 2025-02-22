@@ -3,7 +3,11 @@ import cors from "cors";
 import connection from "./db/connection.js";  // Import the MySQL connection
 import recordRoutes from "./routes/backendRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import dotenv from 'dotenv';
+import axios from 'axios'; 
 
+// Load environment variables from .env file
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -20,7 +24,16 @@ app.use(express.json());
 app.use("/api/users", recordRoutes);
 app.use("/api/admin", adminRoutes);
 
-
+app.get('/api/map-style', async (req, res) => {
+  try {
+    const response = await axios.get(
+      `https://api.maptiler.com/maps/streets/style.json?key=${process.env.MAPTILER_API_KEY}`
+    );
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).send('Error fetching map style ');
+  }
+});
 
 // Global error handling
 app.use((err, _req, res, _next) => {

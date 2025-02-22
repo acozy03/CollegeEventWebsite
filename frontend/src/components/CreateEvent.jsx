@@ -1,6 +1,9 @@
 import React, { useState } from "react";
+import Map, { Marker } from "@vis.gl/react-maplibre"; // Import MapLibre and Marker
+import "maplibre-gl/dist/maplibre-gl.css"; // Import styles
 
-const API_BASE_URL = "http://localhost:5050/api"; // Replace with your Express.js server URL
+const API_BASE_URL = "http://localhost:5050/api";
+const MAP_STYLE = "http://localhost:5050/api/map-style";
 
 export default function CreateEvent() {
   const [eventData, setEventData] = useState({
@@ -9,29 +12,52 @@ export default function CreateEvent() {
     Description: "",
     Time: "",
     Date: "",
-    LocationID: "",
+    LocationName: "", // New field for location name
+    Latitude: null,   // New field for latitude
+    Longitude: null,  // New field for longitude
     ContactPhone: "",
     ContactEmail: "",
-    Visibility: "public", // Default visibility
-    Approved: false, // Default to not approved
-    RSOID: "", // Optional
-    UniversityID: "", // Required
+    Visibility: "public",
+    Approved: false,
+    RSOID: "",
+    UniversityID: "",
   });
   const [error, setError] = useState(null);
+  const [marker, setMarker] = useState({ lat: 37.7749, lng: -122.4194 }); // Default to San Francisco
+
+  // Handle map click to select location
+  const handleMapClick = (e) => {
+    const { lng, lat } = e.lngLat;
+
+    // Prompt the user to enter a location name
+    const locationName = window.prompt("Enter the name of the location:");
+    if (!locationName) {
+      alert("Location name is required.");
+      return;
+    }
+
+    // Update the marker and event data
+    setMarker({ lat, lng });
+    setEventData({
+      ...eventData,
+      LocationName: locationName, // Store the location name
+      Latitude: lat,              // Store the latitude
+      Longitude: lng,             // Store the longitude
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem("token"); // Get the admin's token
+      const token = localStorage.getItem("token");
       const response = await fetch(`${API_BASE_URL}/admin/events/add`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // Include the token for authentication
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(eventData),
+        body: JSON.stringify(eventData), // Send updated eventData
       });
-
       if (!response.ok) throw new Error("Failed to create event");
       const data = await response.json();
       alert(`Event created successfully! Event ID: ${data.eventId}`);
@@ -41,7 +67,9 @@ export default function CreateEvent() {
         Description: "",
         Time: "",
         Date: "",
-        LocationID: "",
+        LocationName: "", // Reset location name
+        Latitude: null,   // Reset latitude
+        Longitude: null,  // Reset longitude
         ContactPhone: "",
         ContactEmail: "",
         Visibility: "public",
@@ -49,6 +77,7 @@ export default function CreateEvent() {
         RSOID: "",
         UniversityID: "",
       });
+      setMarker({ lat: 37.7749, lng: -122.4194 }); // Reset marker
       setError(null);
     } catch (err) {
       setError(err.message || "An error occurred while creating the event.");
@@ -92,13 +121,6 @@ export default function CreateEvent() {
           required
         />
         <input
-          type="number"
-          placeholder="Location ID"
-          value={eventData.LocationID}
-          onChange={(e) => setEventData({ ...eventData, LocationID: e.target.value })}
-          required
-        />
-        <input
           type="tel"
           placeholder="Contact Phone"
           value={eventData.ContactPhone}
@@ -130,8 +152,44 @@ export default function CreateEvent() {
           onChange={(e) => setEventData({ ...eventData, UniversityID: e.target.value })}
           required
         />
+        {/* Display Selected Location Details */}
+        <div>
+          <input
+            type="text"
+            placeholder="Location Name"
+            value={eventData.LocationName}
+            readOnly
+          />
+          <input
+            type="text"
+            placeholder="Latitude"
+            value={eventData.Latitude || ""}
+            readOnly
+          />
+          <input
+            type="text"
+            placeholder="Longitude"
+            value={eventData.Longitude || ""}
+            readOnly
+          />
+        </div>
         <button type="submit">Create Event</button>
       </form>
+      {/* Map Section */}
+      <div style={{ height: "400px", width: "100%", marginTop: "20px" }}>
+        <Map
+          initialViewState={{
+            longitude: marker.lng,
+            latitude: marker.lat,
+            zoom: 10,
+          }}
+          style={{ width: "100%", height: "100%" }}
+          mapStyle={MAP_STYLE}
+          onClick={handleMapClick} // Detects user click
+        >
+          <Marker longitude={marker.lng} latitude={marker.lat} color="red" />
+        </Map>
+      </div>
     </div>
   );
 }
