@@ -13,7 +13,7 @@ export default function Dashboard() {
     localStorage.removeItem("token"); // Remove the token
     localStorage.removeItem("username"); // Remove the username
     navigate("/"); // Redirect to the login page
-  };
+  }; 
 
   // If the user is not logged in, redirect to the login page
   if (!token) {
