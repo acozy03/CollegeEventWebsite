@@ -5,6 +5,7 @@ import recordRoutes from "./routes/backendRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import dotenv from 'dotenv';
 import axios from 'axios'; 
+import superAdminRoutes from "./routes/superAdminRoutes.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -23,6 +24,7 @@ app.use(
 app.use(express.json());
 app.use("/api/users", recordRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/superadmin", superAdminRoutes);
 
 app.get('/api/map-style', async (req, res) => {
   try {
