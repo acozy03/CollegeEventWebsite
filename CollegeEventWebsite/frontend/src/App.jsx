@@ -4,6 +4,7 @@ import UserManagement from "./components/UserManagement";
 import Dashboard from "./components/Dashboard";
 import CreateEvent from "./components/CreateEvent";
 import ProtectedRoute from "./components/ProtectedRoute";
+import CreateUniversity from "./components/CreateUniversity";
 
 function App() {
   return (
@@ -16,6 +17,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CreateEvent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/create-university"
+          element={
+            <ProtectedRoute>
+              <CreateUniversity />
             </ProtectedRoute>
           }
         />
