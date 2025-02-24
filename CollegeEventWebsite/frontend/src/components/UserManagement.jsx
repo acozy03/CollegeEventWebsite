@@ -33,10 +33,13 @@ export default function UserManagement() {
       localStorage.setItem("role", data.role); // Assuming the backend returns the user's role
       localStorage.setItem("username", newUser.Username); // Optional: Store the username
       console.log(data.role); 
-      if(data.role === "Admin") {
+      if (data.role === "Super Admin") {
+        navigate("/superadmin-dashboard");
+      } else if (data.role === "Admin") {
         navigate("/create-event");
-      } 
-      else navigate("/dashboard"); // Redirect to the dashboard after successful login
+      } else {
+        navigate("/dashboard");
+      } // Redirect to the dashboard after successful login
     } catch (err) {
       setError("Login failed: " + err.message);
     }

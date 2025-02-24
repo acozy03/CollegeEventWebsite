@@ -50,25 +50,24 @@ superAdminRoutes.route("/events/approve/:eventId").post(authenticate, isSuperAdm
   if (!eventId) {
     return res.status(400).json({ error: "Event ID is required." });
   }
-
-  try {
-    // Update the event's approval status in the database
-    const query = `
-      UPDATE events
-      SET Approved = 1
-      WHERE EventID = ?
-    `;
-    const [result] = await connection.promise().query(query, [eventId]);
-
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ error: "Event not found or already approved." });
+}); 
+// Route to fetch pending events
+superAdminRoutes.route("/events/pending").get(authenticate, isSuperAdmin, async (req, res) => {
+    console.log("Fetching pending events...");
+    try {
+      const query = `
+        SELECT * FROM events
+        WHERE Approved = 0
+      `;
+      const [results] = await connection.promise().query(query);
+  
+      console.log("Pending events:", results);
+      res.json(results);
+    } catch (error) {
+      console.error("Error fetching pending events:", error);
+      res.status(500).json({ error: "Failed to fetch pending events" });
     }
-
-    res.json({ message: "Event approved successfully" });
-  } catch (error) {
-    console.error("Error approving event:", error);
-    res.status(500).json({ error: "Failed to approve event" });
-  }
-});
+  });
+ 
 
 export default superAdminRoutes;
