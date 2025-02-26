@@ -8,6 +8,7 @@ import ApproveEvents from "./components/ApproveEvents";
 import SuperAdminDashboard from "./components/SuperAdminDashboard"; // Import the new component
 import ProtectedRoute from "./components/ProtectedRoute";
 import CreateRSO from "./components/CreateRSO";
+import ApproveRSOs from "./components/ApproveRSOs";
 function App() {
   return (
     <Router>
@@ -39,6 +40,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ApproveEvents />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/superadmin/approve-rsos"
+          element={
+            <ProtectedRoute>
+              <ApproveRSOs />
             </ProtectedRoute>
           }
         />

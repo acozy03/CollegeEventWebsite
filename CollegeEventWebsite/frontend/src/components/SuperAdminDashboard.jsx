@@ -13,6 +13,9 @@ export default function SuperAdminDashboard() {
           <li>
             <Link to="/superadmin/approve-events">Approve Events</Link>
           </li>
+          <li>
+            <Link to="/superadmin/approve-rsos">Approve RSOs</Link>
+          </li>
         </ul>
       </nav>
     </div>

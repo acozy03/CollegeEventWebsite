@@ -42,6 +42,50 @@ superAdminRoutes.route("/universities/add").post(authenticate, isSuperAdmin, asy
     }
   });
 
+  // Route to fetch unapproved RSOs
+// Route to fetch unapproved RSOs
+superAdminRoutes.route("/rsos/unapproved").get(authenticate, isSuperAdmin, async (req, res) => {
+  try {
+    const query = `
+      SELECT * FROM rsos
+      WHERE Approved = FALSE
+    `;
+    const [results] = await connection.promise().query(query);
+
+    res.json(results);
+  } catch (error) {
+    console.error("Error fetching unapproved RSOs:", error);
+    res.status(500).json({ error: "Failed to fetch unapproved RSOs" });
+  }
+});
+
+// Route to approve an RSO
+superAdminRoutes.route("/approve-rso/:rsoId").put(authenticate, isSuperAdmin, async (req, res) => {
+  const { rsoId } = req.params;
+
+  try {
+    // Check if the RSO exists
+    const checkRsoQuery = "SELECT * FROM rsos WHERE RSOID = ?";
+    const [rsoResults] = await connection.promise().query(checkRsoQuery, [rsoId]);
+
+    if (rsoResults.length === 0) {
+      return res.status(404).json({ error: "RSO not found" });
+    }
+
+    // Approve the RSO
+    const approveQuery = "UPDATE rsos SET Approved = TRUE WHERE RSOID = ?";
+    const [updateResult] = await connection.promise().query(approveQuery, [rsoId]);
+
+    if (updateResult.affectedRows === 0) {
+      return res.status(404).json({ error: "RSO not found" });
+    }
+
+    res.json({ message: "RSO approved successfully" });
+  } catch (error) {
+    console.error("Error approving RSO:", error);
+    res.status(500).json({ error: "Failed to approve RSO" });
+  }
+});
 // Route to approve an event created by an admin
 superAdminRoutes.route("/events/approve/:eventId").post(authenticate, isSuperAdmin, async (req, res) => {
   const { eventId } = req.params;

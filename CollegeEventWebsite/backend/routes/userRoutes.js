@@ -107,20 +107,20 @@ recordRoutes.post("/create-rso", authenticate, async (req, res) => {
 });
 
 recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
-  const { RSOID } = req.body; // Extract RSO ID from request
-  const userId = req.user.userId; // Extract logged-in user ID from token
+  const { RSOName } = req.body; // Extract the RSO name from request
+  const userId = req.user.userId; // Get the logged-in user's ID
 
-  if (!RSOID) {
-    return res.status(400).json({ error: "RSOID is required" });
+  if (!RSOName) {
+    return res.status(400).json({ error: "RSO Name is required" });
   }
 
   try {
     await connection.promise().query("START TRANSACTION");
 
-    // **Step 1: Check if RSO exists**
+    // **Step 1: Find the RSO ID by Name**
     const [rsoResults] = await connection.promise().query(
-      "SELECT UniversityID FROM rsos WHERE RSOID = ?", 
-      [RSOID]
+      "SELECT RSOID, UniversityID FROM rsos WHERE Name = ?",
+      [RSOName]
     );
 
     if (rsoResults.length === 0) {
@@ -128,11 +128,11 @@ recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
       return res.status(404).json({ error: "RSO not found" });
     }
 
-    const rsoUniversityId = rsoResults[0].UniversityID;
+    const { RSOID, UniversityID } = rsoResults[0];
 
     // **Step 2: Ensure the user is in the same university**
     const [userResults] = await connection.promise().query(
-      "SELECT UniversityID FROM users WHERE UserID = ?", 
+      "SELECT UniversityID FROM users WHERE UserID = ?",
       [userId]
     );
 
@@ -141,17 +141,15 @@ recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const userUniversityId = userResults[0].UniversityID;
-
-    if (userUniversityId !== rsoUniversityId) {
+    if (userResults[0].UniversityID !== UniversityID) {
       await connection.promise().query("ROLLBACK");
       return res.status(400).json({ error: "User must belong to the same university as the RSO." });
     }
 
-    // **Step 3: Insert the user into `rso_membership` (Ignore if already a member)**
-    const insertQuery = 
+    // **Step 3: Insert the user into `rso_membership`**
+    const insertQuery =
       "INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES (?, ?)";
-    
+
     const [insertResult] = await connection.promise().query(insertQuery, [userId, RSOID]);
 
     if (insertResult.affectedRows === 0) {
@@ -159,15 +157,15 @@ recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
       return res.status(400).json({ error: "User is already a member of this RSO." });
     }
 
-    // **Step 4: Increment the MemberCount in `rsos` table**
+    // **Step 4: Increment the MemberCount in `rsos`**
     await connection.promise().query(
-      "UPDATE rsos SET MemberCount = MemberCount + 1 WHERE RSOID = ?", 
+      "UPDATE rsos SET MemberCount = MemberCount + 1 WHERE RSOID = ?",
       [RSOID]
     );
 
     await connection.promise().query("COMMIT");
 
-    res.json({ message: "Successfully joined RSO", RSOID });
+    res.json({ message: `Successfully joined RSO: ${RSOName}`, RSOID });
   } catch (error) {
     console.error("Error joining RSO:", error);
     await connection.promise().query("ROLLBACK");
@@ -176,17 +174,27 @@ recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
 });
 
 
+
 // Route to get all users
-recordRoutes.route("/fetch").get(authenticate, (req, res) => {
-  const query = "SELECT UserID, FirstName, LastName, Username, Email, Role, UniversityID FROM users";
-  connection.query(query, (err, results) => {
-    if (err) {
-      console.error("Error fetching users:", err);
-      return res.status(500).json({ error: "Server error" });
+recordRoutes.get("/fetch", authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId; // Extract user ID from the token
+    const [userResults] = await connection.promise().query(
+      "SELECT UserID, FirstName, Email FROM users WHERE UserID = ?", 
+      [userId]
+    );
+
+    if (userResults.length === 0) {
+      return res.status(404).json({ error: "User not found" });
     }
-    res.json(results);
-  });
+
+    res.json(userResults[0]); // ✅ Ensure `UserID` is included in the response
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    res.status(500).json({ error: "Failed to fetch user" });
+  }
 });
+
 
 // Route for user registration (updated to automatically assign Role as "student")
 recordRoutes.route("/add").post(async (req, response) => {
@@ -267,38 +275,23 @@ recordRoutes.route("/login").post(async (req, res) => {
   });
 });
 
-// TODO 
-// // Route to update a user
-// recordRoutes.route("/update/:id").post((req, response) => {
-//   const { FirstName, LastName, Username, Email, Role } = req.body;
+recordRoutes.route("/user-rsos/:userId").get(authenticate, async (req, res) => {
+  const userId = req.params.userId;
 
-//   if (!FirstName || !LastName || !Username || !Email || !Role) {
-//     return response.status(400).json({ error: "All fields are required" });
-//   }
+  try {
+    const [results] = await connection.promise().query(
+      "SELECT r.RSOID, r.Name, r.UniversityID, r.Approved " +
+      "FROM rso_membership rm " +
+      "JOIN rsos r ON rm.RSOID = r.RSOID " +
+      "WHERE rm.UserID = ?",
+      [userId]
+    );
 
-//   const query = "UPDATE users SET FirstName = ?, LastName = ?, Username = ?, Email = ?, Role = ? WHERE UserID = ?";
-//   connection.execute(query, [FirstName, LastName, Username, Email, Role, req.params.id], (err, res) => {
-//     if (err) {
-//       console.error("Error updating user:", err);
-//       return response.status(500).send("Error updating user");
-//     }
-//     console.log("1 document updated");
-//     response.json(res); // Send the result of the update operation
-//   });
-// });
-
-// Route to delete a user
-recordRoutes.route("/:id").delete((req, response) => {
-  console.log("Received ID to delete:", req.params.id); // Debugging
-  const query = "DELETE FROM users WHERE UserID = ?";
-  connection.execute(query, [req.params.id], (err, res) => {
-    if (err) {
-      console.error("Error deleting user:", err);
-      return response.status(500).send("Error deleting user");
-    }
-    console.log("1 document deleted");
-    response.json(res); // Send the result of the delete operation
-  });
+    res.json(results); // Send all RSOs the user is part of
+  } catch (error) {
+    console.error("Error fetching user's RSOs:", error);
+    res.status(500).json({ error: "Failed to fetch user's RSOs" });
+  }
 });
 
 export default recordRoutes;

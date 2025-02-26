@@ -3,22 +3,19 @@ import { useNavigate, Link } from "react-router-dom";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [rsoId, setRsoId] = useState(""); // State for the RSO ID input
-  const [userDetails, setUserDetails] = useState(null); // State to store user details
-  const [error, setError] = useState(null); // State for error messages
+  const [rsoName, setRsoName] = useState(""); // RSO ID input
+  const [userDetails, setUserDetails] = useState(null); // Stores user details
+  const [userRSOs, setUserRSOs] = useState([]); // ✅ Stores RSOs separately
+  const [error, setError] = useState(null);
 
-  // Retrieve the token and username from local storage
   const token = localStorage.getItem("token");
-  const username = localStorage.getItem("username");
 
-  // Fetch user details (including RSODID) from the backend
+  // ✅ Fetch user details
   useEffect(() => {
     const fetchUserDetails = async () => {
       try {
         const response = await fetch("http://localhost:5050/api/users/fetch", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!response.ok) {
@@ -26,7 +23,16 @@ export default function Dashboard() {
         }
 
         const data = await response.json();
-        setUserDetails(data);
+
+        console.log("Fetched User Details:", data); // ✅ Debugging
+
+        setUserDetails({
+          userId: data.UserID,
+          name: data.Name,
+          email: data.Email,
+        });
+
+        // ❌ Don't fetch RSOs here anymore!
       } catch (err) {
         console.error(err);
         setError("Error fetching user details");
@@ -40,14 +46,38 @@ export default function Dashboard() {
     }
   }, [token, navigate]);
 
+  // ✅ Fetch RSOs only after userDetails is set
+  useEffect(() => {
+    if (userDetails?.userId) {
+      const fetchUserRSOs = async () => {
+        try {
+          const response = await fetch(`http://localhost:5050/api/users/user-rsos/${userDetails.userId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch user's RSOs");
+          }
+
+          const data = await response.json();
+          console.log("Fetched RSOs:", data); // ✅ Debugging
+          setUserRSOs(data);
+        } catch (error) {
+          console.error("Error fetching user's RSOs:", error);
+        }
+      };
+
+      fetchUserRSOs();
+    }
+  }, [userDetails?.userId]); // ✅ Runs only when userId changes
+
   // Handle logout
   const handleLogout = () => {
-    localStorage.removeItem("token"); // Remove the token
-    localStorage.removeItem("username"); // Remove the username
-    navigate("/"); // Redirect to the login page
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    navigate("/");
   };
 
-  // Handle joining an RSO
   const handleJoinRSO = async (e) => {
     e.preventDefault();
     try {
@@ -57,31 +87,27 @@ export default function Dashboard() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ RSOID: rsoId }), // ✅ Fixed key
+        body: JSON.stringify({ RSOName: rsoName }), // ✅ Send name instead of ID
       });
-
+  
       const data = await response.json();
-
+  
       if (!response.ok) {
         throw new Error(data.error || "Failed to join RSO");
       }
-
-      alert(data.message); // Notify the user that they joined successfully
-      
-      // ✅ Store RSO as an array instead of a single value
-      setUserDetails({ 
-        ...userDetails, 
-        RSOs: [...(userDetails.RSOs || []), rsoId] 
-      });
-
+  
+      alert(data.message);
+  
+      // ✅ Update RSOs immediately in state
+      setUserRSOs([...userRSOs, { RSOID: data.RSOID, Name: rsoName }]);
+      setRsoName(""); // Clear input field
     } catch (err) {
       console.error(err);
       setError(err.message || "Error joining RSO");
     }
-};
+  };
+  
 
-
-  // If the user is not logged in, redirect to the login page
   if (!token) {
     navigate("/");
     return null;
@@ -89,35 +115,41 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <h2>Welcome, {username}!</h2>
-      <p>You are now logged in.</p>
+      <h2>Welcome, {userDetails?.name || "User"}!</h2>
 
-      {/* Display RSO status */}
-      {userDetails && userDetails.RSODID ? (
-        <p>You are already part of RSO with ID: {userDetails.RSODID}</p>
+      {/* ✅ Display multiple RSOs the user is part of */}
+      <h3>Your RSOs:</h3>
+      {userRSOs.length > 0 ? (
+        <ul>
+          {userRSOs.map((rso) => (
+            <li key={rso.RSOID}>{rso.Name} (ID: {rso.RSOID})</li>
+          ))}
+        </ul>
       ) : (
-        <>
-          <form onSubmit={handleJoinRSO}>
-            <h3>Join an RSO</h3>
-            <input
-              type="number"
-              placeholder="Enter RSO ID"
-              value={rsoId}
-              onChange={(e) => setRsoId(e.target.value)}
-              required
-            />
-            <button type="submit">Join RSO</button>
-          </form>
-
-          {/* Add a "Create an RSO" button */}
-          <div style={{ marginTop: "20px" }}>
-            <h3>Or Create a New RSO</h3>
-            <Link to="/create-rso">
-              <button>Create an RSO</button>
-            </Link>
-          </div>
-        </>
+        <p>You are not part of any RSO yet.</p>
       )}
+
+      {/* Join an RSO Form */}
+      <form onSubmit={handleJoinRSO}>
+      <h3>Join an RSO</h3>
+      <input
+        type="text"
+        placeholder="Enter RSO Name"
+        value={rsoName}
+        onChange={(e) => setRsoName(e.target.value)}
+        required
+      />
+      <button type="submit">Join RSO</button>
+    </form>
+
+
+      {/* Create an RSO */}
+      <div style={{ marginTop: "20px" }}>
+        <h3>Or Create a New RSO</h3>
+        <Link to="/create-rso">
+          <button>Create an RSO</button>
+        </Link>
+      </div>
 
       {/* Logout button */}
       <button onClick={handleLogout}>Logout</button>
