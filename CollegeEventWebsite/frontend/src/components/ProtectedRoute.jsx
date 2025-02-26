@@ -11,7 +11,7 @@ const ProtectedRoute = ({ children }) => {
   }
 
   // Optionally, restrict access to admins only
-  if (userRole !== "Admin" && userRole !== "Super Admin") {
+  if (userRole !== "Admin" && userRole !== "Super Admin" && userRole !== "Student") {
     return <Navigate to="/" />;
   }
 

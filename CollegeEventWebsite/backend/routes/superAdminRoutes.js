@@ -69,5 +69,30 @@ superAdminRoutes.route("/events/pending").get(authenticate, isSuperAdmin, async 
     }
   });
  
-
+  superAdminRoutes.route("/approve-rso/:rsoId").put(authenticate, isSuperAdmin, async (req, res) => {
+    const { rsoId } = req.params;
+  
+    try {
+      // Step 1: Check if the RSO exists
+      const checkRsoQuery = "SELECT * FROM rsos WHERE RSOID = ?";
+      const [rsoResults] = await connection.promise().query(checkRsoQuery, [rsoId]);
+  
+      if (rsoResults.length === 0) {
+        return res.status(404).json({ error: "RSO not found" });
+      }
+  
+      // Step 2: Approve the RSO
+      const approveQuery = "UPDATE rsos SET Approved = TRUE WHERE RSOID = ?";
+      const [updateResult] = await connection.promise().query(approveQuery, [rsoId]);
+  
+      if (updateResult.affectedRows === 0) {
+        return res.status(404).json({ error: "RSO not found" });
+      }
+  
+      res.json({ message: "RSO approved successfully" });
+    } catch (error) {
+      console.error("Error approving RSO:", error);
+      res.status(500).json({ error: "Failed to approve RSO" });
+    }
+  });
 export default superAdminRoutes;

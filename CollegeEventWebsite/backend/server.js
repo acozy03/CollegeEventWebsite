@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import connection from "./db/connection.js";  // Import the MySQL connection
-import recordRoutes from "./routes/backendRoutes.js";
+import recordRoutes from "./routes/userRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import dotenv from 'dotenv';
 import axios from 'axios'; 

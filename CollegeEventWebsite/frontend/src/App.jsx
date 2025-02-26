@@ -7,7 +7,7 @@ import CreateUniversity from "./components/CreateUniversity";
 import ApproveEvents from "./components/ApproveEvents";
 import SuperAdminDashboard from "./components/SuperAdminDashboard"; // Import the new component
 import ProtectedRoute from "./components/ProtectedRoute";
-
+import CreateRSO from "./components/CreateRSO";
 function App() {
   return (
     <Router>
@@ -17,6 +17,7 @@ function App() {
 
         {/* Protected Routes */}
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/create-rso" element={<CreateRSO />} />
         <Route
           path="/create-event"
           element={
