@@ -1,38 +1,54 @@
-Term Project
-COP 4710, Spring 2025
-Application: College Event Website
+# College Event Website
 
-Problem:
-Most universities in the country host events around campus and off campus. These events are
-organized by college students in most cases. Students are clustered RSOs (Registered Student
-Organizations) by different organizations, clubs, fraternities around campus. These events could
-be of different types: social, fundraising, tech talks, etc. Now, each university has a website
-where they post their events for the upcoming weeks. One needs to check the website to add
-each event to his/her calendar. These events are just official events and not all events around
-the university are included. Another limitation is that one has no way to track weekly events.
+## Term Project for COP 4710 - Spring 2025
 
-Project Description
-You are asked to implement a web-based application that solves the problems. Any student
-(user) may register with the application to obtain a user ID and a password. There are three
-user levels: super admin who creates a profile for a university (name, location, description,
-number of students, pictures, etc.), admin who owns an RSO and may host events, and student
-who uses the application to look up information about the various events.
-Admin can create events with name, event category, description, time, date, location, contact
-phone, and contact email address. A location should be set from a map (Bing, Google, open
-street map) with name, latitude, longitude, etc. To populate the database, one can use feeds
-(e.g., RSS, XML) from events.ucf.edu. Each admin is affiliated with one university, and one or
-more RSOs. A user can request to create a new RSO or to join an existing one. A new RSO can
-be created with at least 4 other students with the same email domain (university), e.g.,
-@knights.ucf.edu; and one of them should be assigned as an administrator.
-There are different types of events (social, fundraising, tech talks, etc.). Each event can be public,
-private, or an RSO event. Public events can be seen by everyone; private events can be seen by
-the students at the host university; and an RSO events can only be seen by members of the RSO.
-In addition, events can be created without an RSO (public events). Such events must be
-approved by the super admin. After an event has been published, users can add, remove, and
-edit their comments on the event, as well as rating the event on a scale of 1-5 (stars). The
-application should offer some social network integration, e.g., posting from the application to
-Facebook or Google.
-When logged in, Student should be able to view all public events, private events at their
-university, and event of RSOs of which they are member. They will not be able to create
-events, but should be able to rate, comment and edit (update) their comments for any
-event.
+### Application Overview
+The College Event Website is a web-based application designed to allow students, Registered Student Organizations (RSOs), and university administrators to manage and engage with campus events. The platform offers a solution to the problem of keeping track of university events, which are often scattered across different websites or only posted for specific groups.
+
+The application is structured around three different user roles:
+1. **Super Admin** – Manages university profiles and approves public events.
+2. **Admin** – Owns an RSO, creates events for the RSO, and manages event details.
+3. **Student** – Registers for the platform, views events, comments on events, and rates them.
+
+The website allows students to view various types of events, interact with event content, and keep track of upcoming events. It also supports event creation, commenting, and event categorization (social, fundraising, tech talks, etc.).
+
+### Problem Statement
+Universities host numerous events each semester, often organized by student groups (RSOs), but current university websites are limited in the information they provide to students regarding these events. This project solves the problem by providing a centralized platform where all events—whether public or private—can be easily tracked, viewed, and interacted with by students.
+
+### Features
+- **User Registration**: Users can register for an account and get a user ID and password.
+- **Roles**:
+  - **Super Admin**: Creates and manages university profiles, approves public events.
+  - **Admin**: Owns an RSO, creates and manages events, and can assign RSO memberships.
+  - **Student**: Views public events, private events (specific to their university), and RSO events. Students can comment, rate, and edit comments on events.
+- **Event Creation**: Admins can create events with the following details:
+  - Event Name
+  - Event Category (e.g., social, fundraising, tech talks)
+  - Event Description
+  - Date and Time
+  - Location (integrated with map services like Bing, Google, or OpenStreetMap)
+  - Contact Information (Phone and Email)
+- **Event Visibility**: Events can be marked as public, private (university-specific), or RSO-specific.
+- **RSO Management**: Students can join existing RSOs or create new ones if they meet the requirements (at least 4 students with the same university email domain).
+- **Event Interactions**: Students can comment, rate, and update their comments on events.
+- **Social Network Integration**: Users can share events on social media platforms such as Facebook or Google.
+- **Event Approval**: Super Admins must approve events that are created without an RSO affiliation (public events).
+
+### Technologies Used
+- **Frontend**:
+  - HTML5, CSS3, JavaScript
+  - React for UI components
+  - Map API Integration (OpenStreetMap)
+  - Social media API integration (Facebook, Google)
+- **Backend**:
+  - Node.js/Express for the server-side logic
+  - MySQL for the database
+- **Authentication**:
+  - JWT (JSON Web Tokens) for user authentication
+- **Event Feeds**:
+  - Data can be populated from external RSS/feeds (e.g., events.ucf.edu)
+  
+### Installation and Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/college-event-website.git
