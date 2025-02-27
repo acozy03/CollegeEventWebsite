@@ -5,30 +5,44 @@ const API_BASE_URL = "http://localhost:5050/api/users";
 export default function CreateRSO() {
   const [rsoData, setRsoData] = useState({
     name: "",
-    members: ["", "", "", ""], // Array of member IDs
-    adminId: "",
+    member1: "",
+    member2: "",
+    member3: "",
+    member4: "",
+    adminUsername: "", // Admin username
   });
   const [error, setError] = useState(null);
 
-  const handleChange = (e, index) => {
-    const { value } = e.target;
-    const updatedMembers = [...rsoData.members];
-    updatedMembers[index] = value;
-    setRsoData({ ...rsoData, members: updatedMembers });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setRsoData({ ...rsoData, [name]: value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Combine all members into an array
+    const members = [
+      rsoData.member1,
+      rsoData.member2,
+      rsoData.member3,
+      rsoData.member4,
+      rsoData.adminUsername,
+    ];
+
     try {
       const token = localStorage.getItem("token");
-
       const response = await fetch(`${API_BASE_URL}/create-rso`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(rsoData),
+        body: JSON.stringify({
+          name: rsoData.name,
+          members: members.filter((member) => member.trim() !== ""), // Remove empty values
+          adminUsername: rsoData.adminUsername,
+        }),
       });
 
       if (!response.ok) {
@@ -52,35 +66,58 @@ export default function CreateRSO() {
         <input
           type="text"
           placeholder="RSO Name"
+          name="name"
           value={rsoData.name}
-          onChange={(e) => setRsoData({ ...rsoData, name: e.target.value })}
+          onChange={handleChange}
           required
         />
 
         {/* Member Inputs */}
         <h3>Add 4 Members</h3>
-        {rsoData.members.map((member, index) => (
-          <input
-            key={index}
-            type="number"
-            placeholder={`Member ${index + 1} ID`}
-            value={member}
-            onChange={(e) => handleChange(e, index)}
-            required
-          />
-        ))}
-
-        {/* Admin ID */}
         <input
-          type="number"
-          placeholder="Admin ID"
-          value={rsoData.adminId}
-          onChange={(e) =>
-            setRsoData({ ...rsoData, adminId: e.target.value })
-          }
+          type="text"
+          placeholder="Member 1 Username"
+          name="member1"
+          value={rsoData.member1}
+          onChange={handleChange}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Member 2 Username"
+          name="member2"
+          value={rsoData.member2}
+          onChange={handleChange}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Member 3 Username"
+          name="member3"
+          value={rsoData.member3}
+          onChange={handleChange}
+          required
+        />
+        <input
+          type="text"
+          placeholder="Member 4 Username"
+          name="member4"
+          value={rsoData.member4}
+          onChange={handleChange}
           required
         />
 
+        {/* Admin Username */}
+        <input
+          type="text"
+          placeholder="Admin Username"
+          name="adminUsername"
+          value={rsoData.adminUsername}
+          onChange={handleChange}
+          required
+        />
+
+        {/* Submit Button */}
         <button type="submit">Create RSO</button>
       </form>
 

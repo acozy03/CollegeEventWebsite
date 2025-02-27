@@ -22,73 +22,64 @@ const getDomainFromEmail = (email) => {
 };
 
 recordRoutes.post("/create-rso", authenticate, async (req, res) => {
-  const { name, members, adminId } = req.body; // `members` is an array of user IDs
-  const userId = req.user.userId; // Authenticated user (admin)
+  const { name, members, adminUsername } = req.body; // `members` is an array of usernames
 
   // **Step 1: Basic Validation**
-  if (!name || !members || !adminId || members.length !== 4) {
-    return res.status(400).json({ error: "Invalid input. Provide a name, 4 members, and an admin ID." });
+  if (!name || !members || members.length !== 5 || !adminUsername) {
+    return res.status(400).json({ error: "Invalid input. Provide a name, 4 members, and an admin username." });
   }
 
-  // Ensure unique members (remove duplicates)
-  const allMembers = [...new Set([...members, userId])];
-
-  if (allMembers.length !== 5) {
-    return res.status(400).json({ error: "All members must be unique. Ensure there are exactly 5 distinct members." });
+  // **Ensure unique usernames (admin + 4 members)**
+  const allUsernames = [...new Set([...members, adminUsername])];
+  if (allUsernames.length !== 5) {
+    return res.status(400).json({ error: "All usernames must be unique. Ensure there are exactly 5 distinct members." });
   }
 
   try {
     await connection.promise().query("START TRANSACTION");
 
-    // **Step 2: Check for Existing RSO Name**
-    const [existingRso] = await connection.promise().query(
-      "SELECT * FROM rsos WHERE Name = ?",
-      [name]
-    );
+    // **Step 2: Check if RSO name already exists**
+    const [existingRso] = await connection.promise().query("SELECT RSOID FROM rsos WHERE Name = ?", [name]);
     if (existingRso.length > 0) {
       await connection.promise().query("ROLLBACK");
       return res.status(400).json({ error: "An RSO with this name already exists." });
     }
 
-    // **Step 3: Get Admin's University**
-    const [adminUniversityResult] = await connection.promise().query(
-      "SELECT UniversityID FROM users WHERE UserID = ?", [adminId]
+    // **Step 3: Resolve Usernames to UserIDs**
+    const [userResults] = await connection.promise().query(
+      "SELECT UserID, Username, UniversityID FROM users WHERE Username IN (?)",
+      [allUsernames]
     );
 
-    if (adminUniversityResult.length === 0) {
+    if (userResults.length !== 5) {
       await connection.promise().query("ROLLBACK");
-      return res.status(400).json({ error: "Admin does not exist." });
+      return res.status(400).json({ error: "One or more usernames do not exist." });
     }
 
-    const universityId = adminUniversityResult[0].UniversityID;
-
-    // **Step 4: Ensure All Members Are From the Same University**
-    const [memberUniversities] = await connection.promise().query(
-      "SELECT DISTINCT UniversityID FROM users WHERE UserID IN (?)", [allMembers]
-    );
-
-    if (memberUniversities.length !== 1 || memberUniversities[0].UniversityID !== universityId) {
+    // **Ensure all users belong to the same university**
+    const universityIds = new Set(userResults.map(user => user.UniversityID));
+    if (universityIds.size !== 1) {
       await connection.promise().query("ROLLBACK");
-      return res.status(400).json({ error: "All members must belong to the same university as the admin." });
+      return res.status(400).json({ error: "All members must belong to the same university." });
     }
+    const universityId = userResults[0].UniversityID; // Since all are the same, pick the first
 
-    // **Step 5: Insert RSO**
-    const insertRsoQuery = "INSERT INTO rsos (Name, UniversityID, AdminID, Approved, MemberCount) VALUES (?, ?, ?, FALSE, 0)";
+    // **Find the admin's UserID**
+    const adminUser = userResults.find(user => user.Username === adminUsername);
+    if (!adminUser) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(400).json({ error: "Admin username does not exist." });
+    }
+    const adminId = adminUser.UserID;
+
+    // **Step 4: Insert RSO**
+    const insertRsoQuery = `INSERT INTO rsos (Name, UniversityID, PendingAdminID, Approved, MemberCount) VALUES (?, ?, ?, FALSE, 0)`;
     const [insertResult] = await connection.promise().query(insertRsoQuery, [name, universityId, adminId]);
-
     const rsoId = insertResult.insertId;
 
-    // **Step 6: Insert Members (Prevent Duplicates)**
-    const memberValues = allMembers.map(userId => [userId, rsoId]);
-
-    const assignMembersQuery = "INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES " + 
-      allMembers.map(() => "(?, ?)").join(", ");
-    
-    const flattenedValues = allMembers.flatMap(userId => [userId, rsoId]);
-
-    console.log("Final Query: ", assignMembersQuery, flattenedValues);
-
-    await connection.promise().query(assignMembersQuery, flattenedValues);
+    // **Step 5: Insert Members**
+    const memberValues = userResults.map(user => [user.UserID, rsoId]);
+    await connection.promise().query("INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES ?", [memberValues]);
 
     // **Commit Transaction**
     await connection.promise().query("COMMIT");
@@ -105,74 +96,6 @@ recordRoutes.post("/create-rso", authenticate, async (req, res) => {
     res.status(500).json({ error: "Failed to create RSO" });
   }
 });
-
-recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
-  const { RSOName } = req.body; // Extract the RSO name from request
-  const userId = req.user.userId; // Get the logged-in user's ID
-
-  if (!RSOName) {
-    return res.status(400).json({ error: "RSO Name is required" });
-  }
-
-  try {
-    await connection.promise().query("START TRANSACTION");
-
-    // **Step 1: Find the RSO ID by Name**
-    const [rsoResults] = await connection.promise().query(
-      "SELECT RSOID, UniversityID FROM rsos WHERE Name = ?",
-      [RSOName]
-    );
-
-    if (rsoResults.length === 0) {
-      await connection.promise().query("ROLLBACK");
-      return res.status(404).json({ error: "RSO not found" });
-    }
-
-    const { RSOID, UniversityID } = rsoResults[0];
-
-    // **Step 2: Ensure the user is in the same university**
-    const [userResults] = await connection.promise().query(
-      "SELECT UniversityID FROM users WHERE UserID = ?",
-      [userId]
-    );
-
-    if (userResults.length === 0) {
-      await connection.promise().query("ROLLBACK");
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    if (userResults[0].UniversityID !== UniversityID) {
-      await connection.promise().query("ROLLBACK");
-      return res.status(400).json({ error: "User must belong to the same university as the RSO." });
-    }
-
-    // **Step 3: Insert the user into `rso_membership`**
-    const insertQuery =
-      "INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES (?, ?)";
-
-    const [insertResult] = await connection.promise().query(insertQuery, [userId, RSOID]);
-
-    if (insertResult.affectedRows === 0) {
-      await connection.promise().query("ROLLBACK");
-      return res.status(400).json({ error: "User is already a member of this RSO." });
-    }
-
-    // **Step 4: Increment the MemberCount in `rsos`**
-    await connection.promise().query(
-      "UPDATE rsos SET MemberCount = MemberCount + 1 WHERE RSOID = ?",
-      [RSOID]
-    );
-
-    await connection.promise().query("COMMIT");
-
-    res.json({ message: `Successfully joined RSO: ${RSOName}`, RSOID });
-  } catch (error) {
-    console.error("Error joining RSO:", error);
-    await connection.promise().query("ROLLBACK");
-    res.status(500).json({ error: "Failed to join RSO" });
-  }
-});
-
 
 
 // Route to get all users
@@ -274,7 +197,72 @@ recordRoutes.route("/login").post(async (req, res) => {
     res.json({ message: "Login successful", token, role: user.Role });
   });
 });
+recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
+  const { RSOName } = req.body; // Extract the RSO name from request
+  const userId = req.user.userId; // Get the logged-in user's ID
 
+  if (!RSOName) {
+    return res.status(400).json({ error: "RSO Name is required" });
+  }
+
+  try {
+    await connection.promise().query("START TRANSACTION");
+
+    // **Step 1: Find the RSO ID by Name**
+    const [rsoResults] = await connection.promise().query(
+      "SELECT RSOID, UniversityID FROM rsos WHERE Name = ?",
+      [RSOName]
+    );
+
+    if (rsoResults.length === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(404).json({ error: "RSO not found" });
+    }
+
+    const { RSOID, UniversityID } = rsoResults[0];
+
+    // **Step 2: Ensure the user is in the same university**
+    const [userResults] = await connection.promise().query(
+      "SELECT UniversityID FROM users WHERE UserID = ?",
+      [userId]
+    );
+
+    if (userResults.length === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (userResults[0].UniversityID !== UniversityID) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(400).json({ error: "User must belong to the same university as the RSO." });
+    }
+
+    // **Step 3: Insert the user into `rso_membership`**
+    const insertQuery =
+      "INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES (?, ?)";
+
+    const [insertResult] = await connection.promise().query(insertQuery, [userId, RSOID]);
+
+    if (insertResult.affectedRows === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(400).json({ error: "User is already a member of this RSO." });
+    }
+
+    // **Step 4: Increment the MemberCount in `rsos`**
+    await connection.promise().query(
+      "UPDATE rsos SET MemberCount = MemberCount + 1 WHERE RSOID = ?",
+      [RSOID]
+    );
+
+    await connection.promise().query("COMMIT");
+
+    res.json({ message: `Successfully joined RSO: ${RSOName}`, RSOID });
+  } catch (error) {
+    console.error("Error joining RSO:", error);
+    await connection.promise().query("ROLLBACK");
+    res.status(500).json({ error: "Failed to join RSO" });
+  }
+});
 recordRoutes.route("/user-rsos/:userId").get(authenticate, async (req, res) => {
   const userId = req.params.userId;
 

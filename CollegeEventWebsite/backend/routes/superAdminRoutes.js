@@ -59,12 +59,11 @@ superAdminRoutes.route("/rsos/unapproved").get(authenticate, isSuperAdmin, async
   }
 });
 
-// Route to approve an RSO
 superAdminRoutes.route("/approve-rso/:rsoId").put(authenticate, isSuperAdmin, async (req, res) => {
   const { rsoId } = req.params;
 
   try {
-    // Check if the RSO exists
+    // Step 1: Fetch the RSO details
     const checkRsoQuery = "SELECT * FROM rsos WHERE RSOID = ?";
     const [rsoResults] = await connection.promise().query(checkRsoQuery, [rsoId]);
 
@@ -72,12 +71,23 @@ superAdminRoutes.route("/approve-rso/:rsoId").put(authenticate, isSuperAdmin, as
       return res.status(404).json({ error: "RSO not found" });
     }
 
-    // Approve the RSO
-    const approveQuery = "UPDATE rsos SET Approved = TRUE WHERE RSOID = ?";
+    const rso = rsoResults[0];
+    const pendingAdminID = rso.PendingAdminID;
+
+    // Step 2: Approve the RSO
+    const approveQuery = "UPDATE rsos SET Approved = TRUE, PendingAdminID = NULL WHERE RSOID = ?";
     const [updateResult] = await connection.promise().query(approveQuery, [rsoId]);
 
+    const adminQuery = "UPDATE rsos SET AdminID = ? WHERE RSOID = ?"
+    await connection.promise().query(adminQuery, [pendingAdminID, rsoId]);
     if (updateResult.affectedRows === 0) {
       return res.status(404).json({ error: "RSO not found" });
+    }
+
+    // Step 3: Promote the pending admin to admin
+    if (pendingAdminID) {
+      const promoteAdminQuery = "UPDATE users SET Role = 'Admin' WHERE UserID = ?";
+      await connection.promise().query(promoteAdminQuery, [pendingAdminID]);
     }
 
     res.json({ message: "RSO approved successfully" });
