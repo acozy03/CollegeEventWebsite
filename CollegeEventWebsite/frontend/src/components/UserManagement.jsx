@@ -36,7 +36,7 @@ export default function UserManagement() {
       if (data.role === "Super Admin") {
         navigate("/superadmin-dashboard");
       } else if (data.role === "Admin") {
-        navigate("/create-event");
+        navigate("/admin-dashboard");
       } else {
         navigate("/dashboard");
       } // Redirect to the dashboard after successful login

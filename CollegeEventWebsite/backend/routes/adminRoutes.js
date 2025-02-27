@@ -13,8 +13,28 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-// Route to create a new event
-adminRoutes.route("/events/add").post(authenticate, isAdmin, async (req, res) => {
+// ✅ Route to fetch all RSOs an admin is involved in
+adminRoutes.get("/admin-rsos", authenticate, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const [results] = await connection.promise().query(
+      `SELECT r.RSOID, r.Name, (r.AdminID = ?) AS isAdmin
+       FROM rso_membership rm
+       JOIN rsos r ON rm.RSOID = r.RSOID
+       WHERE rm.UserID = ?`,
+      [userId, userId]
+    );
+
+    res.json(results);
+  } catch (error) {
+    console.error("Error fetching admin RSOs:", error);
+    res.status(500).json({ error: "Failed to fetch admin RSOs" });
+  }
+});
+
+// ✅ Route to create a new event
+adminRoutes.post("/events/add", authenticate, isAdmin, async (req, res) => {
   const {
     Name,
     Category,
@@ -38,29 +58,31 @@ adminRoutes.route("/events/add").post(authenticate, isAdmin, async (req, res) =>
   }
 
   try {
-    // Step 1: Check if the location already exists
+    await connection.promise().query("START TRANSACTION");
+
+    // **Step 1: Check if the location already exists**
     const checkLocationQuery = `
-      SELECT locationid FROM locations 
-      WHERE name = ? AND latitude = ? AND longitude = ?
+      SELECT LocationID FROM locations 
+      WHERE Name = ? AND Latitude = ? AND Longitude = ?
     `;
     const [existingLocations] = await connection.promise().query(checkLocationQuery, [LocationName, Latitude, Longitude]);
 
     let locationId;
 
     if (existingLocations.length > 0) {
-      // Location already exists, use its ID
-      locationId = existingLocations[0].locationid;
+      // ✅ Location already exists, use its ID
+      locationId = existingLocations[0].LocationID;
     } else {
-      // Step 2: Insert the new location
+      // ✅ Step 2: Insert the new location
       const insertLocationQuery = `
-        INSERT INTO locations (name, latitude, longitude) 
+        INSERT INTO locations (Name, Latitude, Longitude) 
         VALUES (?, ?, ?)
       `;
       const [insertResult] = await connection.promise().query(insertLocationQuery, [LocationName, Latitude, Longitude]);
       locationId = insertResult.insertId; // Get the auto-generated LocationID
     }
 
-    // Step 3: Insert the event with the resolved LocationID
+    // ✅ Step 3: Insert the event with the resolved LocationID
     const insertEventQuery = `
       INSERT INTO events (Name, Category, Description, Time, Date, LocationID, ContactPhone, ContactEmail, Visibility, Approved, AdminID, RSOID, UniversityID) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -81,9 +103,12 @@ adminRoutes.route("/events/add").post(authenticate, isAdmin, async (req, res) =>
       UniversityID,
     ]);
 
+    await connection.promise().query("COMMIT");
+    
     res.json({ message: "Event created successfully", eventId: eventResult.insertId });
   } catch (error) {
     console.error("Error creating event:", error);
+    await connection.promise().query("ROLLBACK");
     res.status(500).json({ error: "Failed to create event" });
   }
 });

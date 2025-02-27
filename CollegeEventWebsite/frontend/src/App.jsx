@@ -9,6 +9,7 @@ import SuperAdminDashboard from "./components/SuperAdminDashboard"; // Import th
 import ProtectedRoute from "./components/ProtectedRoute";
 import CreateRSO from "./components/CreateRSO";
 import ApproveRSOs from "./components/ApproveRSOs";
+import AdminDashboard from "./components/AdminDashboard";
 function App() {
   return (
     <Router>
@@ -24,6 +25,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CreateEvent />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin-dashboard"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
             </ProtectedRoute>
           }
         />

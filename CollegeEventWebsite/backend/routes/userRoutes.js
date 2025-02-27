@@ -80,7 +80,10 @@ recordRoutes.post("/create-rso", authenticate, async (req, res) => {
     // **Step 5: Insert Members**
     const memberValues = userResults.map(user => [user.UserID, rsoId]);
     await connection.promise().query("INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES ?", [memberValues]);
-
+    await connection.promise().query(
+      "UPDATE rsos SET MemberCount = MemberCount + 5 WHERE RSOID = ?",
+      [rsoId]
+    );
     // **Commit Transaction**
     await connection.promise().query("COMMIT");
 
@@ -94,6 +97,117 @@ recordRoutes.post("/create-rso", authenticate, async (req, res) => {
     }
 
     res.status(500).json({ error: "Failed to create RSO" });
+  }
+});
+
+recordRoutes.route("/leave-rso").post(authenticate, async (req, res) => {
+  const { RSOName, newAdminUsername } = req.body;
+  const userId = req.user.userId;
+
+  if (!RSOName) {
+    return res.status(400).json({ error: "RSO Name is required" });
+  }
+
+  try {
+    await connection.promise().query("START TRANSACTION");
+
+    // **Step 1: Get RSO ID & Check Membership**
+    const [rsoResults] = await connection.promise().query(
+      "SELECT RSOID, AdminID, MemberCount FROM rsos WHERE Name = ?",
+      [RSOName]
+    );
+
+    if (rsoResults.length === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(404).json({ error: "RSO not found" });
+    }
+
+    const { RSOID, AdminID, MemberCount } = rsoResults[0];
+
+    // **Step 2: Ensure the user is a member**
+    const [membershipResults] = await connection.promise().query(
+      "SELECT * FROM rso_membership WHERE UserID = ? AND RSOID = ?",
+      [userId, RSOID]
+    );
+
+    if (membershipResults.length === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(400).json({ error: "User is not a member of this RSO." });
+    }
+
+    // **Step 3: If user is the admin, transfer admin rights**
+    if (userId === AdminID) {
+      if (!newAdminUsername) {
+        await connection.promise().query("ROLLBACK");
+        return res.status(400).json({ error: "Admin must select a new admin before leaving." });
+      }
+
+      // **Find the new admin’s UserID**
+      const [newAdminResults] = await connection.promise().query(
+        "SELECT UserID FROM users WHERE Username = ?",
+        [newAdminUsername]
+      );
+
+      if (newAdminResults.length === 0) {
+        await connection.promise().query("ROLLBACK");
+        return res.status(400).json({ error: "New admin username not found." });
+      }
+
+      const newAdminID = newAdminResults[0].UserID;
+
+      // **Ensure the new admin is a member of the RSO**
+      const [isMember] = await connection.promise().query(
+        "SELECT * FROM rso_membership WHERE UserID = ? AND RSOID = ?",
+        [newAdminID, RSOID]
+      );
+
+      if (isMember.length === 0) {
+        await connection.promise().query("ROLLBACK");
+        return res.status(400).json({ error: "Selected new admin must be a member of this RSO." });
+      }
+
+      // ✅ **Transfer admin rights in `rsos` table**
+      await connection.promise().query(
+        "UPDATE rsos SET AdminID = ? WHERE RSOID = ?",
+        [newAdminID, RSOID]
+      );
+
+      // ✅ **Update roles in `users` table**
+      await connection.promise().query(
+        "UPDATE users SET Role = 'Admin' WHERE UserID = ?",
+        [newAdminID]
+      );
+
+      await connection.promise().query(
+        "UPDATE users SET Role = 'Student' WHERE UserID = ?",
+        [userId]
+      );
+    }
+
+    // **Step 4: Remove the user from `rso_membership`**
+    await connection.promise().query(
+      "DELETE FROM rso_membership WHERE UserID = ? AND RSOID = ?",
+      [userId, RSOID]
+    );
+
+    // **Step 5: Decrement `MemberCount`**
+    await connection.promise().query(
+      "UPDATE rsos SET MemberCount = MemberCount - 1 WHERE RSOID = ?",
+      [RSOID]
+    );
+
+    // **Step 6: If no members remain, delete the RSO**
+    if (MemberCount - 1 <= 0) {
+      await connection.promise().query("DELETE FROM rsos WHERE RSOID = ?", [RSOID]);
+    }
+
+    await connection.promise().query("COMMIT");
+
+    res.json({ message: `Successfully left RSO: ${RSOName}` });
+  } catch (error) {
+    console.error("Error leaving RSO:", error);
+    await connection.promise().query("ROLLBACK");
+    res.status(500).json({ error: "Failed to leave RSO" });
   }
 });
 

@@ -46,30 +46,34 @@ export default function Dashboard() {
     }
   }, [token, navigate]);
 
-  // ✅ Fetch RSOs only after userDetails is set
-  useEffect(() => {
-    if (userDetails?.userId) {
-      const fetchUserRSOs = async () => {
-        try {
-          const response = await fetch(`http://localhost:5050/api/users/user-rsos/${userDetails.userId}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
+ // ✅ Fetch RSOs only after userDetails is set
+useEffect(() => {
+  if (userDetails?.userId) {
+    const fetchUserRSOs = async () => {
+      try {
+        const response = await fetch(`http://localhost:5050/api/users/user-rsos/${userDetails.userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-          if (!response.ok) {
-            throw new Error("Failed to fetch user's RSOs");
-          }
-
-          const data = await response.json();
-          console.log("Fetched RSOs:", data); // ✅ Debugging
-          setUserRSOs(data);
-        } catch (error) {
-          console.error("Error fetching user's RSOs:", error);
+        if (!response.ok) {
+          throw new Error("Failed to fetch user's RSOs");
         }
-      };
 
-      fetchUserRSOs();
-    }
-  }, [userDetails?.userId]); // ✅ Runs only when userId changes
+        const data = await response.json();
+        console.log("Fetched RSOs:", data); // ✅ Debugging
+
+        // ✅ Filter out only approved RSOs
+        const approvedRSOs = data.filter(rso => rso.Approved);
+        setUserRSOs(approvedRSOs);
+      } catch (error) {
+        console.error("Error fetching user's RSOs:", error);
+      }
+    };
+
+    fetchUserRSOs();
+  }
+}, [userDetails?.userId]); // ✅ Runs only when userId changes
+
 
   // Handle logout
   const handleLogout = () => {
@@ -77,7 +81,33 @@ export default function Dashboard() {
     localStorage.removeItem("username");
     navigate("/");
   };
-
+  const handleLeaveRSO = async (rsoName, newAdminUsername = null) => {
+    try {
+      const response = await fetch("http://localhost:5050/api/users/leave-rso", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ RSOName: rsoName, newAdminUsername }), // Send newAdminUsername if applicable
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to leave RSO");
+      }
+  
+      alert(data.message);
+  
+      // ✅ Remove RSO from state
+      setUserRSOs(userRSOs.filter(rso => rso.Name !== rsoName));
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Error leaving RSO");
+    }
+  };
+  
   const handleJoinRSO = async (e) => {
     e.preventDefault();
     try {
@@ -118,16 +148,20 @@ export default function Dashboard() {
       <h2>Welcome, {userDetails?.name || "User"}!</h2>
 
       {/* ✅ Display multiple RSOs the user is part of */}
-      <h3>Your RSOs:</h3>
-      {userRSOs.length > 0 ? (
-        <ul>
-          {userRSOs.map((rso) => (
-            <li key={rso.RSOID}>{rso.Name} (ID: {rso.RSOID})</li>
-          ))}
-        </ul>
-      ) : (
-        <p>You are not part of any RSO yet.</p>
-      )}
+      <h3>Your Approved RSOs:</h3>
+{userRSOs.length > 0 ? (
+  <ul>
+    {userRSOs.map((rso) => (
+      <li key={rso.RSOID}>
+        {rso.Name} (ID: {rso.RSOID})
+        <button onClick={() => handleLeaveRSO(rso.Name)}>Leave</button>
+      </li>
+    ))}
+  </ul>
+) : (
+  <p>You are not part of any approved RSO yet.</p>
+)}
+
 
       {/* Join an RSO Form */}
       <form onSubmit={handleJoinRSO}>
