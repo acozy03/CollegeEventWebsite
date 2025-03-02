@@ -24,7 +24,7 @@ const getDomainFromEmail = (email) => {
 recordRoutes.post("/create-rso", authenticate, async (req, res) => {
   const { name, members, adminUsername } = req.body; // `members` is an array of usernames
 
-  // **Step 1: Basic Validation**
+  // **Step 1: Basic Validation for Input**
   if (!name || !members || members.length !== 5 || !adminUsername) {
     return res.status(400).json({ error: "Invalid input. Provide a name, 4 members, and an admin username." });
   }
@@ -142,7 +142,7 @@ recordRoutes.route("/leave-rso").post(authenticate, async (req, res) => {
         return res.status(400).json({ error: "Admin must select a new admin before leaving." });
       }
 
-      // **Find the new admin’s UserID**
+      // **Find the new admin’s UserID** 
       const [newAdminResults] = await connection.promise().query(
         "SELECT UserID FROM users WHERE Username = ?",
         [newAdminUsername]
@@ -197,7 +197,7 @@ recordRoutes.route("/leave-rso").post(authenticate, async (req, res) => {
     );
 
     // **Step 6: If no members remain, delete the RSO**
-    if (MemberCount - 1 <= 0) {
+    if (MemberCount <= 1) {
       await connection.promise().query("DELETE FROM rsos WHERE RSOID = ?", [RSOID]);
     }
 
