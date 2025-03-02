@@ -4,7 +4,7 @@ import connection from "../db/connection.js";
 import { authenticate } from "./auth.js";
 
 const adminRoutes = express.Router();
-
+const getDomainFromEmail = (email) => email.split("@")[1];
 // Middleware to ensure only admins can access this route
 const isAdmin = (req, res, next) => {
   if (req.user.role !== "Admin") {
@@ -16,7 +16,7 @@ const isAdmin = (req, res, next) => {
 // ✅ Route to fetch all RSOs an admin is involved in
 adminRoutes.get("/admin-rsos", authenticate, async (req, res) => {
   const userId = req.user.userId;
-
+ console.log(userId)
   try {
     const [results] = await connection.promise().query(
       `SELECT r.RSOID, r.Name, (r.AdminID = ?) AS isAdmin
@@ -33,56 +33,97 @@ adminRoutes.get("/admin-rsos", authenticate, async (req, res) => {
   }
 });
 
-// ✅ Route to create a new event
-adminRoutes.post("/events/add", authenticate, isAdmin, async (req, res) => {
+adminRoutes.post("/events/add", authenticate, async (req, res) => {
   const {
     Name,
     Category,
     Description,
     Time,
     Date,
-    LocationName, // New field for the location name
-    Latitude,     // New field for latitude
-    Longitude,    // New field for longitude
+    LocationName,
+    Latitude,
+    Longitude,
     ContactPhone,
     ContactEmail,
     Visibility,
-    Approved,
-    RSOID,
-    UniversityID,
+    RSOID, // This is only needed if Visibility = 'rso'
   } = req.body;
 
-  // Validate required fields
-  if (!Name || !Category || !Time || !Date || !LocationName || !Latitude || !Longitude || !UniversityID) {
+  if (!Name || !Category || !Time || !Date || !LocationName || !Latitude || !Longitude) {
     return res.status(400).json({ error: "All required fields must be provided." });
   }
 
   try {
     await connection.promise().query("START TRANSACTION");
 
-    // **Step 1: Check if the location already exists**
-    const checkLocationQuery = `
-      SELECT LocationID FROM locations 
-      WHERE Name = ? AND Latitude = ? AND Longitude = ?
-    `;
-    const [existingLocations] = await connection.promise().query(checkLocationQuery, [LocationName, Latitude, Longitude]);
+    // **Step 1: Get Admin's Email and Determine UniversityID**
+    const [adminResult] = await connection.promise().query(
+      "SELECT Email FROM users WHERE UserID = ?",
+      [req.user.userId],
+    );
 
-    let locationId;
-
-    if (existingLocations.length > 0) {
-      // ✅ Location already exists, use its ID
-      locationId = existingLocations[0].LocationID;
-    } else {
-      // ✅ Step 2: Insert the new location
-      const insertLocationQuery = `
-        INSERT INTO locations (Name, Latitude, Longitude) 
-        VALUES (?, ?, ?)
-      `;
-      const [insertResult] = await connection.promise().query(insertLocationQuery, [LocationName, Latitude, Longitude]);
-      locationId = insertResult.insertId; // Get the auto-generated LocationID
+    if (adminResult.length === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(404).json({ error: "Admin not found." });
     }
 
-    // ✅ Step 3: Insert the event with the resolved LocationID
+    const adminEmail = adminResult[0].Email;
+    const domain = getDomainFromEmail(adminEmail);
+
+    const [domainResults] = await connection.promise().query(
+      "SELECT UniversityID FROM universities WHERE domain = ?",
+      [domain]
+    );
+
+    if (domainResults.length === 0) {
+      await connection.promise().query("ROLLBACK");
+      return res.status(400).json({ error: "University not found for this email domain." });
+    }
+
+    const UniversityID = domainResults[0].UniversityID;
+
+    let selectedRSOID = null; // Default to no RSO
+
+    // **Step 2: If Visibility is 'rso', Ensure Admin Selects an RSO**
+    if (Visibility === "rso") {
+
+      const [adminRSOs] = await connection.promise().query(
+        "SELECT RSOID FROM rsos WHERE AdminID = ?",
+       [req.user.userId],
+       console.log(req.userId)
+      );
+    
+      if (adminRSOs.length === 0) {
+        await connection.promise().query("ROLLBACK");
+        return res.status(403).json({ error: "You are not an admin of any RSO." });
+      }
+
+      if (adminRSOs.length > 1 && !RSOID) {
+        await connection.promise().query("ROLLBACK");
+        return res.status(400).json({
+          error: "You are an admin of multiple RSOs. Please select an RSO ID.",
+          adminRSOs: adminRSOs.map(rso => rso.RSOID),
+        });
+      }
+
+      selectedRSOID = adminRSOs.length === 1 ? adminRSOs[0].RSOID : RSOID;
+    }
+
+    // **Step 3: Insert the new location**
+    const insertLocationQuery = `
+      INSERT INTO locations (Name, Latitude, Longitude) 
+      VALUES (?, ?, ?)
+    `;
+    const [insertLocation] = await connection.promise().query(insertLocationQuery, [LocationName, Latitude, Longitude]);
+    const locationId = insertLocation.insertId;
+
+    // **Step 4: Determine Approval Status Based on Visibility**
+    let Approved = 1;
+    if (Visibility === "public") {
+      Approved = 0; // Requires super admin approval
+    }
+
+    // **Step 5: Insert the event**
     const insertEventQuery = `
       INSERT INTO events (Name, Category, Description, Time, Date, LocationID, ContactPhone, ContactEmail, Visibility, Approved, AdminID, RSOID, UniversityID) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -93,18 +134,18 @@ adminRoutes.post("/events/add", authenticate, isAdmin, async (req, res) => {
       Description,
       Time,
       Date,
-      locationId, // Use the resolved LocationID
+      locationId,
       ContactPhone,
       ContactEmail,
-      Visibility || "Public", // Default to "Public" if not provided
-      Approved || 1,          // Default to 1 (approved) if not provided
-      req.user.userId,        // The ID of the admin creating the event
-      RSOID || null,          // Optional: RSO ID
+      Visibility,
+      Approved,
+      req.user.userId,
+      selectedRSOID, // If not an RSO event, this remains NULL
       UniversityID,
     ]);
 
     await connection.promise().query("COMMIT");
-    
+
     res.json({ message: "Event created successfully", eventId: eventResult.insertId });
   } catch (error) {
     console.error("Error creating event:", error);
