@@ -46,7 +46,7 @@ adminRoutes.post("/events/add", authenticate, async (req, res) => {
     ContactPhone,
     ContactEmail,
     Visibility,
-    RSOID, // This is only needed if Visibility = 'rso'
+    RSOID, // This is only needed if Visibility = "rso"
   } = req.body;
 
   if (!Name || !Category || !Time || !Date || !LocationName || !Latitude || !Longitude) {
