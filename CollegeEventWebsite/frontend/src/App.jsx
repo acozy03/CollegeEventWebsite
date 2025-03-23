@@ -10,6 +10,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import CreateRSO from "./components/CreateRSO";
 import ApproveRSOs from "./components/ApproveRSOs";
 import AdminDashboard from "./components/AdminDashboard";
+import './App.css';
 function App() {
   return (
     <Router>

@@ -32,6 +32,25 @@ adminRoutes.get("/admin-rsos", authenticate, async (req, res) => {
     res.status(500).json({ error: "Failed to fetch admin RSOs" });
   }
 });
+// New endpoint to fetch admin-specific events
+adminRoutes.get("/events", authenticate, async (req, res) => {
+  const userId = req.user.userId;
+
+  try {
+    const [events] = await connection.promise().query(
+      `SELECT e.EventID, e.Name, e.Category, e.Date, e.Time, e.LocationName, (e.AdminID = ?) AS isAdmin
+       FROM events e
+       LEFT JOIN rsos r ON e.RSOID = r.RSOID
+       WHERE e.AdminID = ? OR (r.AdminID = ?)`,
+      [userId, userId, userId]
+    );
+
+    res.json(events);
+  } catch (error) {
+    console.error("Error fetching admin events:", error);
+    res.status(500).json({ error: "Failed to fetch admin events" });
+  }
+});
 
 adminRoutes.post("/events/add", authenticate, async (req, res) => {
   const {
