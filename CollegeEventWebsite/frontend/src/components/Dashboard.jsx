@@ -13,6 +13,11 @@ export default function Dashboard() {
   const [events, setEvents] = useState([]) // ✅ New state for user events
   const [availableEvents, setAvailableEvents] = useState([]) // ✅ New state for available events
   const [activeTab, setActiveTab] = useState("myEvents") // ✅ For tab navigation
+  const [eventComments, setEventComments] = useState({}) // Store comments for each event
+  const [newComment, setNewComment] = useState("") // New comment text
+  const [newRating, setNewRating] = useState(5) // New rating value
+  const [selectedEvent, setSelectedEvent] = useState(null) // Selected event for comments
+  const [eventRatings, setEventRatings] = useState({}) // Store average ratings
 
   const token = localStorage.getItem("token")
 
@@ -130,6 +135,52 @@ export default function Dashboard() {
       fetchAvailableEvents()
     }
   }, [userDetails?.userId, token])
+
+  // Fetch comments for an event
+  const fetchEventComments = async (eventId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/users/event-comments/${eventId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch event comments")
+      }
+
+      const data = await response.json()
+      setEventComments((prev) => ({
+        ...prev,
+        [eventId]: data,
+      }))
+
+      return data
+    } catch (error) {
+      console.error("Error fetching event comments:", error)
+      return []
+    }
+  }
+
+  // Fetch average rating for an event
+  const fetchEventRating = async (eventId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/users/event-rating/${eventId}`)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch event rating")
+      }
+
+      const data = await response.json()
+      setEventRatings((prev) => ({
+        ...prev,
+        [eventId]: data,
+      }))
+
+      return data
+    } catch (error) {
+      console.error("Error fetching event rating:", error)
+      return { averageRating: 0, ratingCount: 0 }
+    }
+  }
 
   // Handle logout
   const handleLogout = () => {
@@ -257,6 +308,102 @@ export default function Dashboard() {
     }
   }
 
+  // Add or update a comment
+  const handleAddComment = async (eventId) => {
+    try {
+      const response = await fetch("http://localhost:5050/api/users/event-comments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          eventId,
+          comment: newComment,
+          rating: newRating,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add comment")
+      }
+
+      alert(data.message)
+
+      // Refresh comments
+      await fetchEventComments(eventId)
+      await fetchEventRating(eventId)
+
+      // Clear form
+      setNewComment("")
+      setNewRating(5)
+    } catch (err) {
+      console.error(err)
+      alert(err.message || "Error adding comment")
+    }
+  }
+
+  // Delete a comment
+  const handleDeleteComment = async (commentId, eventId) => {
+    try {
+      const response = await fetch(`http://localhost:5050/api/users/event-comments/${commentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete comment")
+      }
+
+      alert(data.message)
+
+      // Refresh comments
+      await fetchEventComments(eventId)
+      await fetchEventRating(eventId)
+    } catch (err) {
+      console.error(err)
+      alert(err.message || "Error deleting comment")
+    }
+  }
+
+  // Share event on Facebook
+  const shareOnFacebook = (event) => {
+    const eventTitle = encodeURIComponent(event.Name)
+    const eventDate = encodeURIComponent(formatDate(event.Date))
+    const eventLocation = encodeURIComponent(event.LocationName)
+    const message = encodeURIComponent(
+      `Join me at ${event.Name} on ${formatDate(event.Date)} at ${event.LocationName}!`,
+    )
+
+    const url = `https://www.facebook.com/sharer/sharer.php?u=${window.location.href}&quote=${message}`
+
+    window.open(url, "_blank", "width=600,height=400")
+  }
+
+  // Toggle showing comments for an event
+  const toggleEventComments = async (eventId) => {
+    if (selectedEvent === eventId) {
+      setSelectedEvent(null)
+    } else {
+      setSelectedEvent(eventId)
+
+      // Fetch comments and ratings if not already loaded
+      if (!eventComments[eventId]) {
+        await fetchEventComments(eventId)
+      }
+
+      if (!eventRatings[eventId]) {
+        await fetchEventRating(eventId)
+      }
+    }
+  }
+
   if (!token) {
     navigate("/")
     return null
@@ -286,6 +433,32 @@ export default function Dashboard() {
   // Check if an event is in the user's registered events
   const isRegisteredForEvent = (eventId) => {
     return events.some((event) => event.EventID === eventId)
+  }
+
+  // Render star rating
+  const renderStarRating = (rating) => {
+    const stars = []
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <span key={i} className={i <= rating ? "star filled" : "star"}>
+          ★
+        </span>,
+      )
+    }
+    return stars
+  }
+
+  // Render star rating input
+  const renderStarRatingInput = () => {
+    const stars = []
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <span key={i} className={i <= newRating ? "star filled" : "star"} onClick={() => setNewRating(i)}>
+          ★
+        </span>,
+      )
+    }
+    return stars
   }
 
   return (
@@ -350,9 +523,87 @@ export default function Dashboard() {
                           <strong>Contact:</strong> {event.ContactEmail}
                         </p>
                       )}
-                      <button onClick={() => handleUnregisterEvent(event.EventID)} className="unregister-button">
-                        Unregister
-                      </button>
+
+                      {/* Event Rating */}
+                      {eventRatings[event.EventID] && (
+                        <div className="event-rating">
+                          <p>
+                            <strong>Rating:</strong>{" "}
+                            {renderStarRating(Number(eventRatings[event.EventID].averageRating))}(
+                            {Number(eventRatings[event.EventID].averageRating).toFixed(1)}/5 from{" "}
+                            {eventRatings[event.EventID].ratingCount} ratings)
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="event-actions">
+                        <button onClick={() => handleUnregisterEvent(event.EventID)} className="unregister-button">
+                          Unregister
+                        </button>
+                        <button onClick={() => toggleEventComments(event.EventID)} className="comments-button">
+                          {selectedEvent === event.EventID ? "Hide Comments" : "Show Comments"}
+                        </button>
+                        <button onClick={() => shareOnFacebook(event)} className="share-button">
+                          Share on Facebook
+                        </button>
+                      </div>
+
+                      {/* Comments Section */}
+                      {selectedEvent === event.EventID && (
+                        <div className="comments-section">
+                          <h4>Comments and Ratings</h4>
+
+                          {/* Add Comment Form */}
+                          <div className="add-comment-form">
+                            <h5>Add Your Comment</h5>
+                            <div className="rating-input">
+                              <label>Your Rating: </label>
+                              <div className="star-rating-input">{renderStarRatingInput()}</div>
+                            </div>
+                            <textarea
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              placeholder="Write your comment here..."
+                              rows={3}
+                            ></textarea>
+                            <button onClick={() => handleAddComment(event.EventID)} className="submit-comment-button">
+                              Submit
+                            </button>
+                          </div>
+
+                          {/* Comments List */}
+                          {eventComments[event.EventID] && eventComments[event.EventID].length > 0 ? (
+                            <ul className="comments-list">
+                              {eventComments[event.EventID].map((comment) => (
+                                <li key={comment.CommentID} className="comment-item">
+                                  <div className="comment-header">
+                                    <span className="comment-author">{comment.Username}</span>
+                                    <span className="comment-date">
+                                      {new Date(comment.CreatedAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  {comment.Rating && (
+                                    <div className="comment-rating">{renderStarRating(comment.Rating)}</div>
+                                  )}
+                                  <p className="comment-text">{comment.Comment}</p>
+
+                                  {/* Delete button (only for user's own comments) */}
+                                  {comment.UserID === userDetails?.userId && (
+                                    <button
+                                      onClick={() => handleDeleteComment(comment.CommentID, event.EventID)}
+                                      className="delete-comment-button"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p>No comments yet. Be the first to comment!</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -407,14 +658,95 @@ export default function Dashboard() {
                         <strong>Visibility:</strong> {event.Visibility}
                       </p>
 
-                      {isRegisteredForEvent(event.EventID) ? (
-                        <button onClick={() => handleUnregisterEvent(event.EventID)} className="unregister-button">
-                          Unregister
+                      {/* Event Rating */}
+                      {eventRatings[event.EventID] && (
+                        <div className="event-rating">
+                          <p>
+                            <strong>Rating:</strong>{" "}
+                            {renderStarRating(Number(eventRatings[event.EventID].averageRating))}(
+                            {Number(eventRatings[event.EventID].averageRating).toFixed(1)}/5 from{" "}
+                            {eventRatings[event.EventID].ratingCount} ratings)
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="event-actions">
+                        {isRegisteredForEvent(event.EventID) ? (
+                          <button onClick={() => handleUnregisterEvent(event.EventID)} className="unregister-button">
+                            Unregister
+                          </button>
+                        ) : (
+                          <button onClick={() => handleRegisterEvent(event.EventID)} className="register-button">
+                            Register
+                          </button>
+                        )}
+
+                        <button onClick={() => toggleEventComments(event.EventID)} className="comments-button">
+                          {selectedEvent === event.EventID ? "Hide Comments" : "Show Comments"}
                         </button>
-                      ) : (
-                        <button onClick={() => handleRegisterEvent(event.EventID)} className="register-button">
-                          Register
+
+                        <button onClick={() => shareOnFacebook(event)} className="share-button">
+                          Share on Facebook
                         </button>
+                      </div>
+
+                      {/* Comments Section */}
+                      {selectedEvent === event.EventID && (
+                        <div className="comments-section">
+                          <h4>Comments and Ratings</h4>
+
+                          {/* Add Comment Form (only if registered) */}
+                          {isRegisteredForEvent(event.EventID) && (
+                            <div className="add-comment-form">
+                              <h5>Add Your Comment</h5>
+                              <div className="rating-input">
+                                <label>Your Rating: </label>
+                                <div className="star-rating-input">{renderStarRatingInput()}</div>
+                              </div>
+                              <textarea
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                placeholder="Write your comment here..."
+                                rows={3}
+                              ></textarea>
+                              <button onClick={() => handleAddComment(event.EventID)} className="submit-comment-button">
+                                Submit
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Comments List */}
+                          {eventComments[event.EventID] && eventComments[event.EventID].length > 0 ? (
+                            <ul className="comments-list">
+                              {eventComments[event.EventID].map((comment) => (
+                                <li key={comment.CommentID} className="comment-item">
+                                  <div className="comment-header">
+                                    <span className="comment-author">{comment.FirstName}</span>
+                                    <span className="comment-date">
+                                      {new Date(comment.CreatedAt).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  {comment.Rating && (
+                                    <div className="comment-rating">{renderStarRating(comment.Rating)}</div>
+                                  )}
+                                  <p className="comment-text">{comment.Comment}</p>
+
+                                  {/* Delete button (only for user's own comments) */}
+                                  {comment.UserID === userDetails?.userId && (
+                                    <button
+                                      onClick={() => handleDeleteComment(comment.CommentID, event.EventID)}
+                                      className="delete-comment-button"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p>No comments yet. Be the first to comment!</p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </li>

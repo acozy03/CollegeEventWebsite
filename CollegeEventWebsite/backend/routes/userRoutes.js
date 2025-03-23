@@ -190,38 +190,30 @@ recordRoutes.route("/leave-rso").post(authenticate, async (req, res) => {
 
 // Modified endpoint to fetch user-specific events without relying on event_participants
 recordRoutes.get("/events", authenticate, async (req, res) => {
-  const userId = req.user.userId;
+  const userId = req.user.userId
 
   try {
     // First, check if the event_participants table exists
-    const [tables] = await connection.promise().query(
-      "SHOW TABLES LIKE 'event_participants'"
-    );
-    
+    const [tables] = await connection.promise().query("SHOW TABLES LIKE 'event_participants'")
+
     if (tables.length === 0) {
       // If the table doesn't exist, return all visible events for the user
       // Get the user's university ID
-      const [userResults] = await connection.promise().query(
-        "SELECT UniversityID FROM users WHERE UserID = ?",
-        [userId]
-      );
+      const [userResults] = await connection
+        .promise()
+        .query("SELECT UniversityID FROM users WHERE UserID = ?", [userId])
 
       if (userResults.length === 0) {
-        return res.status(404).json({ error: "User not found" });
+        return res.status(404).json({ error: "User not found" })
       }
 
-      const universityId = userResults[0].UniversityID;
+      const universityId = userResults[0].UniversityID
 
       // Get all RSOs the user is a member of
-      const [userRSOs] = await connection.promise().query(
-        "SELECT RSOID FROM rso_membership WHERE UserID = ?",
-        [userId]
-      );
-      
-      const rsoIds = userRSOs.map(rso => rso.RSOID);
-      const rsoCondition = rsoIds.length > 0 
-        ? `OR (e.Visibility = 'RSO' AND e.RSOID IN (${rsoIds.join(',')}))`
-        : '';
+      const [userRSOs] = await connection.promise().query("SELECT RSOID FROM rso_membership WHERE UserID = ?", [userId])
+
+      const rsoIds = userRSOs.map((rso) => rso.RSOID)
+      const rsoCondition = rsoIds.length > 0 ? `OR (e.Visibility = 'RSO' AND e.RSOID IN (${rsoIds.join(",")}))` : ""
 
       // Get all events the user can see
       const [events] = await connection.promise().query(
@@ -239,10 +231,10 @@ recordRoutes.get("/events", authenticate, async (req, res) => {
            ${rsoCondition}
          )
          ORDER BY e.Date ASC, e.Time ASC`,
-        [universityId]
-      );
+        [universityId],
+      )
 
-      return res.json(events);
+      return res.json(events)
     } else {
       // If the table exists, use it to get events the user is registered for
       const [events] = await connection.promise().query(
@@ -257,44 +249,36 @@ recordRoutes.get("/events", authenticate, async (req, res) => {
          JOIN event_participants ep ON e.EventID = ep.EventID
          WHERE ep.UserID = ? AND e.Approved = 1
          ORDER BY e.Date ASC, e.Time ASC`,
-        [userId]
-      );
+        [userId],
+      )
 
-      res.json(events);
+      res.json(events)
     }
   } catch (error) {
-    console.error("Error fetching user events:", error);
-    res.status(500).json({ error: "Failed to fetch user events" });
+    console.error("Error fetching user events:", error)
+    res.status(500).json({ error: "Failed to fetch user events" })
   }
-});
+})
 
 // New endpoint to get all available events the user can see
 recordRoutes.get("/available-events", authenticate, async (req, res) => {
-  const userId = req.user.userId;
+  const userId = req.user.userId
 
   try {
     // Get the user's university ID
-    const [userResults] = await connection.promise().query(
-      "SELECT UniversityID FROM users WHERE UserID = ?",
-      [userId]
-    );
+    const [userResults] = await connection.promise().query("SELECT UniversityID FROM users WHERE UserID = ?", [userId])
 
     if (userResults.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(404).json({ error: "User not found" })
     }
 
-    const universityId = userResults[0].UniversityID;
+    const universityId = userResults[0].UniversityID
 
     // Get all RSOs the user is a member of
-    const [userRSOs] = await connection.promise().query(
-      "SELECT RSOID FROM rso_membership WHERE UserID = ?",
-      [userId]
-    );
-    
-    const rsoIds = userRSOs.map(rso => rso.RSOID);
-    const rsoCondition = rsoIds.length > 0 
-      ? `OR (e.Visibility = 'RSO' AND e.RSOID IN (${rsoIds.join(',')}))`
-      : '';
+    const [userRSOs] = await connection.promise().query("SELECT RSOID FROM rso_membership WHERE UserID = ?", [userId])
+
+    const rsoIds = userRSOs.map((rso) => rso.RSOID)
+    const rsoCondition = rsoIds.length > 0 ? `OR (e.Visibility = 'RSO' AND e.RSOID IN (${rsoIds.join(",")}))` : ""
 
     // Get all events the user can see
     const [events] = await connection.promise().query(
@@ -312,13 +296,13 @@ recordRoutes.get("/available-events", authenticate, async (req, res) => {
          ${rsoCondition}
        )
        ORDER BY e.Date ASC, e.Time ASC`,
-      [universityId]
-    );
+      [universityId],
+    )
 
-    res.json(events);
+    res.json(events)
   } catch (error) {
-    console.error("Error fetching available events:", error);
-    res.status(500).json({ error: "Failed to fetch available events" });
+    console.error("Error fetching available events:", error)
+    res.status(500).json({ error: "Failed to fetch available events" })
   }
 })
 
@@ -328,7 +312,7 @@ recordRoutes.get("/fetch", authenticate, async (req, res) => {
     const userId = req.user.userId // Extract user ID from the token
     const [userResults] = await connection
       .promise()
-      .query("SELECT UserID, FirstName, Email FROM users WHERE UserID = ?", [userId])
+      .query("SELECT UserID, FirstName, Email, Username FROM users WHERE UserID = ?", [userId])
 
     if (userResults.length === 0) {
       return res.status(404).json({ error: "User not found" })
@@ -503,10 +487,8 @@ recordRoutes.post("/register-event", authenticate, async (req, res) => {
 
   try {
     // Check if the event_participants table exists
-    const [tables] = await connection.promise().query(
-      "SHOW TABLES LIKE 'event_participants'"
-    );
-    
+    const [tables] = await connection.promise().query("SHOW TABLES LIKE 'event_participants'")
+
     if (tables.length === 0) {
       // Create the event_participants table if it doesn't exist
       await connection.promise().query(`
@@ -522,7 +504,7 @@ recordRoutes.post("/register-event", authenticate, async (req, res) => {
           CONSTRAINT event_participants_ibfk_1 FOREIGN KEY (UserID) REFERENCES users (UserID) ON DELETE CASCADE,
           CONSTRAINT event_participants_ibfk_2 FOREIGN KEY (EventID) REFERENCES events (EventID) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-      `);
+      `)
     }
 
     // Check if the event exists and is approved
@@ -595,10 +577,8 @@ recordRoutes.post("/unregister-event", authenticate, async (req, res) => {
 
   try {
     // Check if the event_participants table exists
-    const [tables] = await connection.promise().query(
-      "SHOW TABLES LIKE 'event_participants'"
-    );
-    
+    const [tables] = await connection.promise().query("SHOW TABLES LIKE 'event_participants'")
+
     if (tables.length === 0) {
       return res.status(400).json({ error: "You are not registered for any events" })
     }
@@ -624,4 +604,212 @@ recordRoutes.post("/unregister-event", authenticate, async (req, res) => {
   }
 })
 
+// NEW ENDPOINTS FOR COMMENTS AND RATINGS
+
+// Check if event_comments table exists and create it if it doesn't
+const ensureEventCommentsTable = async () => {
+  try {
+    const [tables] = await connection.promise().query("SHOW TABLES LIKE 'event_comments'")
+
+    if (tables.length === 0) {
+      await connection.promise().query(`
+        CREATE TABLE event_comments (
+          CommentID int NOT NULL AUTO_INCREMENT,
+          EventID int NOT NULL,
+          UserID int NOT NULL,
+          Comment text,
+          Rating int,
+          CreatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UpdatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (CommentID),
+          KEY EventID (EventID),
+          KEY UserID (UserID),
+          CONSTRAINT event_comments_ibfk_1 FOREIGN KEY (EventID) REFERENCES events (EventID) ON DELETE CASCADE,
+          CONSTRAINT event_comments_ibfk_2 FOREIGN KEY (UserID) REFERENCES users (UserID) ON DELETE CASCADE,
+          CONSTRAINT rating_range CHECK ((Rating between 1 and 5))
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+      `)
+      return true
+    }
+    return false
+  } catch (error) {
+    console.error("Error ensuring event_comments table:", error)
+    throw error
+  }
+}
+
+// Get comments for an event
+recordRoutes.get("/event-comments/:eventId", authenticate, async (req, res) => {
+  const eventId = req.params.eventId
+
+  try {
+    await ensureEventCommentsTable()
+
+    const [comments] = await connection.promise().query(
+      `SELECT ec.CommentID, ec.EventID, ec.UserID, ec.Comment, ec.Rating, 
+              ec.CreatedAt, ec.UpdatedAt, u.Username, u.FirstName
+       FROM event_comments ec
+       JOIN users u ON ec.UserID = u.UserID
+       WHERE ec.EventID = ?
+       ORDER BY ec.CreatedAt DESC`,
+      [eventId],
+    )
+
+    res.json(comments)
+  } catch (error) {
+    console.error("Error fetching event comments:", error)
+    res.status(500).json({ error: "Failed to fetch event comments" })
+  }
+})
+
+// Add a comment to an event
+recordRoutes.post("/event-comments", authenticate, async (req, res) => {
+  const userId = req.user.userId
+  const { eventId, comment, rating } = req.body
+
+  if (!eventId) {
+    return res.status(400).json({ error: "Event ID is required" })
+  }
+
+  if (!comment && !rating) {
+    return res.status(400).json({ error: "Either comment or rating is required" })
+  }
+
+  if (rating && (rating < 1 || rating > 5)) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" })
+  }
+
+  try {
+    await ensureEventCommentsTable()
+
+    // Check if the user is registered for the event
+    const [registrationResults] = await connection
+      .promise()
+      .query("SELECT * FROM event_participants WHERE UserID = ? AND EventID = ?", [userId, eventId])
+
+    if (registrationResults.length === 0) {
+      return res.status(403).json({ error: "You must be registered for the event to comment or rate" })
+    }
+
+    // Check if the user already has a comment for this event
+    const [existingComment] = await connection
+      .promise()
+      .query("SELECT CommentID FROM event_comments WHERE UserID = ? AND EventID = ?", [userId, eventId])
+
+    if (existingComment.length > 0) {
+      // Update existing comment
+      await connection
+        .promise()
+        .query("UPDATE event_comments SET Comment = ?, Rating = ? WHERE CommentID = ?", [
+          comment,
+          rating,
+          existingComment[0].CommentID,
+        ])
+
+      res.json({ message: "Comment updated successfully", commentId: existingComment[0].CommentID })
+    } else {
+      // Add new comment
+      const [result] = await connection
+        .promise()
+        .query("INSERT INTO event_comments (EventID, UserID, Comment, Rating) VALUES (?, ?, ?, ?)", [
+          eventId,
+          userId,
+          comment,
+          rating,
+        ])
+
+      res.json({ message: "Comment added successfully", commentId: result.insertId })
+    }
+  } catch (error) {
+    console.error("Error adding/updating comment:", error)
+    res.status(500).json({ error: "Failed to add/update comment" })
+  }
+})
+
+// Update a comment
+recordRoutes.put("/event-comments/:commentId", authenticate, async (req, res) => {
+  const userId = req.user.userId
+  const commentId = req.params.commentId
+  const { comment, rating } = req.body
+
+  if (!comment && !rating) {
+    return res.status(400).json({ error: "Either comment or rating is required" })
+  }
+
+  if (rating && (rating < 1 || rating > 5)) {
+    return res.status(400).json({ error: "Rating must be between 1 and 5" })
+  }
+
+  try {
+    // Check if the comment exists and belongs to the user
+    const [commentResults] = await connection
+      .promise()
+      .query("SELECT * FROM event_comments WHERE CommentID = ? AND UserID = ?", [commentId, userId])
+
+    if (commentResults.length === 0) {
+      return res.status(404).json({ error: "Comment not found or you don't have permission to edit it" })
+    }
+
+    // Update the comment
+    await connection
+      .promise()
+      .query("UPDATE event_comments SET Comment = ?, Rating = ? WHERE CommentID = ?", [comment, rating, commentId])
+
+    res.json({ message: "Comment updated successfully" })
+  } catch (error) {
+    console.error("Error updating comment:", error)
+    res.status(500).json({ error: "Failed to update comment" })
+  }
+})
+
+// Delete a comment
+recordRoutes.delete("/event-comments/:commentId", authenticate, async (req, res) => {
+  const userId = req.user.userId
+  const commentId = req.params.commentId
+
+  try {
+    // Check if the comment exists and belongs to the user
+    const [commentResults] = await connection
+      .promise()
+      .query("SELECT * FROM event_comments WHERE CommentID = ? AND UserID = ?", [commentId, userId])
+
+    if (commentResults.length === 0) {
+      return res.status(404).json({ error: "Comment not found or you don't have permission to delete it" })
+    }
+
+    // Delete the comment
+    await connection.promise().query("DELETE FROM event_comments WHERE CommentID = ?", [commentId])
+
+    res.json({ message: "Comment deleted successfully" })
+  } catch (error) {
+    console.error("Error deleting comment:", error)
+    res.status(500).json({ error: "Failed to delete comment" })
+  }
+})
+
+// Get average rating for an event
+recordRoutes.get("/event-rating/:eventId", async (req, res) => {
+  const eventId = req.params.eventId
+
+  try {
+    await ensureEventCommentsTable()
+
+    const [ratingResults] = await connection.promise().query(
+      `SELECT AVG(Rating) as AverageRating, COUNT(Rating) as RatingCount
+       FROM event_comments
+       WHERE EventID = ? AND Rating IS NOT NULL`,
+      [eventId],
+    )
+
+    const averageRating = Number.parseFloat(ratingResults[0].AverageRating) || 0
+    const ratingCount = Number.parseInt(ratingResults[0].RatingCount) || 0
+
+    res.json({ averageRating, ratingCount })
+  } catch (error) {
+    console.error("Error fetching event rating:", error)
+    res.status(500).json({ error: "Failed to fetch event rating" })
+  }
+})
+
 export default recordRoutes
+
