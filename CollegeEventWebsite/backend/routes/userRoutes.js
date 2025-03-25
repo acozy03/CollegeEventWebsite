@@ -312,7 +312,7 @@ recordRoutes.get("/fetch", authenticate, async (req, res) => {
     const userId = req.user.userId // Extract user ID from the token
     const [userResults] = await connection
       .promise()
-      .query("SELECT UserID, FirstName, Email, Username FROM users WHERE UserID = ?", [userId])
+      .query("SELECT UserID, FirstName, Email, Username, UniversityID FROM users WHERE UserID = ?", [userId])
 
     if (userResults.length === 0) {
       return res.status(404).json({ error: "User not found" })
@@ -659,6 +659,25 @@ recordRoutes.get("/event-comments/:eventId", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Error fetching event comments:", error)
     res.status(500).json({ error: "Failed to fetch event comments" })
+  }
+})
+
+recordRoutes.get("/university/:universityId", authenticate, async (req, res) => {
+  const universityId = req.params.universityId
+
+  try {
+    const [universityResults] = await connection
+      .promise()
+      .query("SELECT UniversityID, Name, Domain FROM universities WHERE UniversityID = ?", [universityId])
+
+    if (universityResults.length === 0) {
+      return res.status(404).json({ error: "University not found" })
+    }
+
+    res.json(universityResults[0])
+  } catch (error) {
+    console.error("Error fetching university information:", error)
+    res.status(500).json({ error: "Failed to fetch university information" })
   }
 })
 

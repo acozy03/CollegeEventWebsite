@@ -100,9 +100,20 @@ superAdminRoutes.route("/approve-rso/:rsoId").put(authenticate, isSuperAdmin, as
 superAdminRoutes.route("/events/approve/:eventId").post(authenticate, isSuperAdmin, async (req, res) => {
   const { eventId } = req.params;
 
+  
   // Validate event ID
   if (!eventId) {
     return res.status(400).json({ error: "Event ID is required." });
+  }
+
+  try {
+    const query = `UPDATE events SET Approved = 1 WHERE EventId = ?`;
+    const [results] = await connection.promise().query(query, [eventId]);
+  
+      console.log("did it", results);
+      res.json(results);
+  } catch (error) {
+    console.log("dang it", error);
   }
 }); 
 // Route to fetch pending events

@@ -7,7 +7,7 @@ import "../dashboard.css"
 export default function Dashboard() {
   const navigate = useNavigate()
   const [rsoName, setRsoName] = useState("") // RSO ID input
-  const [userDetails, setUserDetails] = useState(null) // Stores user details
+  const [userDetails, setUserDetails] = useState(null) // Stores user details including university
   const [userRSOs, setUserRSOs] = useState([]) // ✅ Stores RSOs separately
   const [error, setError] = useState(null)
   const [events, setEvents] = useState([]) // ✅ New state for user events
@@ -37,10 +37,20 @@ export default function Dashboard() {
 
         console.log("Fetched User Details:", data) // ✅ Debugging
 
+        // Fetch university information
+        const uniResponse = await fetch(`http://localhost:5050/api/users/university/${data.UniversityID}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        const uniData = await uniResponse.json()
+
         setUserDetails({
           userId: data.UserID,
           name: data.FirstName, // Updated to match your API response
           email: data.Email,
+          universityId: data.UniversityID,
+          universityName: uniData.Name,
+          universityDomain: uniData.Domain,
         })
 
         // ❌ Don't fetch RSOs here anymore!
@@ -464,6 +474,12 @@ export default function Dashboard() {
   return (
     <div className="dashboard">
       <h2>Welcome, {userDetails?.name || "User"}!</h2>
+      {userDetails?.universityName && (
+        <div className="university-info">
+          <p>University: {userDetails.universityName}</p>
+          <p className="university-domain">({userDetails.universityDomain})</p>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="tab-navigation">
@@ -577,7 +593,7 @@ export default function Dashboard() {
                               {eventComments[event.EventID].map((comment) => (
                                 <li key={comment.CommentID} className="comment-item">
                                   <div className="comment-header">
-                                    <span className="comment-author">{comment.Username}</span>
+                                    <span className="comment-author">{comment.FirstName}</span>
                                     <span className="comment-date">
                                       {new Date(comment.CreatedAt).toLocaleDateString()}
                                     </span>
