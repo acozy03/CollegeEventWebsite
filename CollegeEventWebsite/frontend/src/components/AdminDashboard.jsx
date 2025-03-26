@@ -2,7 +2,29 @@
 
 import { useEffect, useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
-import "../dashboard.css" // Reusing the same CSS
+import { motion, AnimatePresence } from "framer-motion"
+import "../dashboard.css"
+
+// Import icons
+import {
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  LogOut,
+  MapPin,
+  Clock,
+  Info,
+  Mail,
+  Share2,
+  User,
+  Star,
+  Plus,
+  Minus,
+  MessageSquare,
+  BookOpen,
+  Settings,
+  PlusCircle,
+} from "react-feather"
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -19,8 +41,17 @@ export default function AdminDashboard() {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [eventRatings, setEventRatings] = useState({})
   const [rsoName, setRsoName] = useState("")
+  const [expandedEvents, setExpandedEvents] = useState({}) // Track expanded event descriptions
 
   const token = localStorage.getItem("token")
+
+  // Toggle event description expansion
+  const toggleEventExpansion = (eventId) => {
+    setExpandedEvents((prev) => ({
+      ...prev,
+      [eventId]: !prev[eventId],
+    }))
+  }
 
   // Fetch user details
   useEffect(() => {
@@ -477,251 +508,226 @@ export default function AdminDashboard() {
     return stars
   }
 
+  // Get event category color
+  const getCategoryColor = (category) => {
+    const categoryColors = {
+      Social: "var(--color-social)",
+      Academic: "var(--color-academic)",
+      Sports: "var(--color-sports)",
+      Cultural: "var(--color-cultural)",
+      Career: "var(--color-career)",
+    }
+
+    return categoryColors[category] || "var(--color-default)"
+  }
+
   return (
-    <div className="dashboard">
-      <h2>Admin Dashboard - Welcome, {userDetails?.name || "Admin"}!</h2>
-      {userDetails?.universityName && (
-        <div className="university-info">
-          <p>University: {userDetails.universityName}</p>
-          <p className="university-domain">({userDetails.universityDomain})</p>
+    <div className="dashboard-container">
+      {/* Navigation Bar */}
+      <header className="navbar">
+        <div className="navbar-brand">
+          <h1>
+            Campus Events <span className="admin-badge">Admin</span>
+          </h1>
         </div>
-      )}
+        <div className="navbar-user">
+          <div className="user-info">
+            <User size={18} />
+            <span>{userDetails?.name || "Admin"}</span>
+          </div>
+          <button onClick={handleLogout} className="logout-button">
+            <LogOut size={18} />
+            <span>Logout</span>
+          </button>
+        </div>
+      </header>
 
-      {/* Tab Navigation */}
-      <div className="tab-navigation">
-        <button className={activeTab === "myEvents" ? "active" : ""} onClick={() => setActiveTab("myEvents")}>
-          My Events
-        </button>
-        <button
-          className={activeTab === "availableEvents" ? "active" : ""}
-          onClick={() => setActiveTab("availableEvents")}
-        >
-          Available Events
-        </button>
-        <button className={activeTab === "myRSOs" ? "active" : ""} onClick={() => setActiveTab("myRSOs")}>
-          My RSOs
-        </button>
-        <button className={activeTab === "createEvent" ? "active" : ""} onClick={() => setActiveTab("createEvent")}>
-          Create Event
-        </button>
-      </div>
+      <div className="dashboard-content">
+        {/* Sidebar */}
+        <aside className="sidebar">
+          <div className="university-card">
+            <BookOpen size={24} />
+            <div className="university-info">
+              <h3>{userDetails?.universityName || "University"}</h3>
+              <p className="university-domain">{userDetails?.universityDomain}</p>
+            </div>
+          </div>
 
-      {/* Tab Content */}
-      <div className="tab-content">
-        {/* My Events Tab */}
-        {activeTab === "myEvents" && (
-          <div>
-            <h3>Your Upcoming Events:</h3>
-            {events.length > 0 ? (
-              <ul className="events-list">
-                {events.map((event) => (
-                  <li key={event.EventID} className="event-item">
-                    <div className="event-header">
-                      <h4>{event.Name}</h4>
-                      <span className="event-category">{event.Category}</span>
-                    </div>
-                    <div className="event-details">
-                      <p>
-                        <strong>Date:</strong> {formatDate(event.Date)}
-                      </p>
-                      <p>
-                        <strong>Time:</strong> {formatTime(event.Time)}
-                      </p>
-                      <p>
-                        <strong>Location:</strong> {event.LocationName}
-                      </p>
-                      <p>
-                        <strong>Coordinates:</strong> {event.Latitude}, {event.Longitude}
-                      </p>
-                      {event.Description && (
-                        <p>
-                          <strong>Description:</strong> {event.Description}
-                        </p>
-                      )}
-                      {event.RSOName && (
-                        <p>
-                          <strong>RSO:</strong> {event.RSOName}
-                        </p>
-                      )}
-                      {event.ContactEmail && (
-                        <p>
-                          <strong>Contact:</strong> {event.ContactEmail}
-                        </p>
-                      )}
+          <nav className="main-nav">
+            <button
+              className={`nav-item ${activeTab === "myEvents" ? "active" : ""}`}
+              onClick={() => setActiveTab("myEvents")}
+            >
+              <Calendar size={18} />
+              <span>My Events</span>
+            </button>
+            <button
+              className={`nav-item ${activeTab === "availableEvents" ? "active" : ""}`}
+              onClick={() => setActiveTab("availableEvents")}
+            >
+              <Calendar size={18} />
+              <span>Available Events</span>
+            </button>
+            <button
+              className={`nav-item ${activeTab === "myRSOs" ? "active" : ""}`}
+              onClick={() => setActiveTab("myRSOs")}
+            >
+              <User size={18} />
+              <span>My RSOs</span>
+            </button>
+            <button
+              className={`nav-item ${activeTab === "createEvent" ? "active" : ""}`}
+              onClick={() => setActiveTab("createEvent")}
+            >
+              <PlusCircle size={18} />
+              <span>Create Event</span>
+            </button>
+          </nav>
+        </aside>
 
-                      {/* Event Rating */}
-                      {eventRatings[event.EventID] && (
-                        <div className="event-rating">
-                          <p>
-                            <strong>Rating:</strong>{" "}
-                            {renderStarRating(Number(eventRatings[event.EventID].averageRating))}(
-                            {Number(eventRatings[event.EventID].averageRating).toFixed(1)}/5 from{" "}
-                            {eventRatings[event.EventID].ratingCount} ratings)
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="event-actions">
-                        <button onClick={() => handleUnregisterEvent(event.EventID)} className="unregister-button">
-                          Unregister
-                        </button>
-                        <button onClick={() => toggleEventComments(event.EventID)} className="comments-button">
-                          {selectedEvent === event.EventID ? "Hide Comments" : "Show Comments"}
-                        </button>
-                        <button onClick={() => shareOnFacebook(event)} className="share-button">
-                          Share on Facebook
-                        </button>
+        {/* Main Content */}
+        <main className="main-content">
+          {/* My Events Tab */}
+          {activeTab === "myEvents" && (
+            <section className="content-section">
+              <h2 className="section-title">My Upcoming Events</h2>
+              {events.length > 0 ? (
+                <div className="events-grid">
+                  {events.map((event) => (
+                    <motion.div
+                      key={event.EventID}
+                      className="event-card"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="event-card-header" style={{ borderColor: getCategoryColor(event.Category) }}>
+                        <h3>{event.Name}</h3>
+                        <span className="event-category" style={{ backgroundColor: getCategoryColor(event.Category) }}>
+                          {event.Category}
+                        </span>
                       </div>
 
-                      {/* Comments Section */}
-                      {selectedEvent === event.EventID && (
-                        <div className="comments-section">
-                          <h4>Comments and Ratings</h4>
-
-                          {/* Add Comment Form */}
-                          <div className="add-comment-form">
-                            <h5>Add Your Comment</h5>
-                            <div className="rating-input">
-                              <label>Your Rating: </label>
-                              <div className="star-rating-input">{renderStarRatingInput()}</div>
-                            </div>
-                            <textarea
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              placeholder="Write your comment here..."
-                              rows={3}
-                            ></textarea>
-                            <button onClick={() => handleAddComment(event.EventID)} className="submit-comment-button">
-                              Submit
-                            </button>
+                      <div className="event-card-body">
+                        <div className="event-info">
+                          <div className="event-info-item">
+                            <Calendar size={16} />
+                            <span>{formatDate(event.Date)}</span>
                           </div>
+                          <div className="event-info-item">
+                            <Clock size={16} />
+                            <span>{formatTime(event.Time)}</span>
+                          </div>
+                          <div className="event-info-item">
+                            <MapPin size={16} />
+                            <span>{event.LocationName}</span>
+                          </div>
+                        </div>
 
-                          {/* Comments List */}
-                          {eventComments[event.EventID] && eventComments[event.EventID].length > 0 ? (
-                            <ul className="comments-list">
-                              {eventComments[event.EventID].map((comment) => (
-                                <li key={comment.CommentID} className="comment-item">
-                                  <div className="comment-header">
-                                    <span className="comment-author">{comment.FirstName}</span>
-                                    <span className="comment-date">
-                                      {new Date(comment.CreatedAt).toLocaleDateString()}
+                        {/* Expandable Details */}
+                        <button className="expand-button" onClick={() => toggleEventExpansion(event.EventID)}>
+                          {expandedEvents[event.EventID] ? (
+                            <>
+                              <ChevronUp size={16} />
+                              <span>Hide Details</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={16} />
+                              <span>Show Details</span>
+                            </>
+                          )}
+                        </button>
+
+                        <AnimatePresence>
+                          {expandedEvents[event.EventID] && (
+                            <motion.div
+                              className="event-details"
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              {event.Description && (
+                                <div className="event-detail-item">
+                                  <Info size={16} />
+                                  <p>{event.Description}</p>
+                                </div>
+                              )}
+
+                              {event.RSOName && (
+                                <div className="event-detail-item">
+                                  <User size={16} />
+                                  <p>Organized by: {event.RSOName}</p>
+                                </div>
+                              )}
+
+                              {event.ContactEmail && (
+                                <div className="event-detail-item">
+                                  <Mail size={16} />
+                                  <p>Contact: {event.ContactEmail}</p>
+                                </div>
+                              )}
+
+                              <div className="event-detail-item">
+                                <MapPin size={16} />
+                                <p>
+                                  Coordinates: {event.Latitude}, {event.Longitude}
+                                </p>
+                              </div>
+
+                              {/* Event Rating */}
+                              {eventRatings[event.EventID] && (
+                                <div className="event-rating">
+                                  <Star size={16} />
+                                  <div>
+                                    {renderStarRating(Number(eventRatings[event.EventID].averageRating))}
+                                    <span className="rating-text">
+                                      ({Number(eventRatings[event.EventID].averageRating).toFixed(1)}/5 from{" "}
+                                      {eventRatings[event.EventID].ratingCount} ratings)
                                     </span>
                                   </div>
-                                  {comment.Rating && (
-                                    <div className="comment-rating">{renderStarRating(comment.Rating)}</div>
-                                  )}
-                                  <p className="comment-text">{comment.Comment}</p>
-
-                                  {/* Delete button (only for user's own comments) */}
-                                  {comment.UserID === userDetails?.userId && (
-                                    <button
-                                      onClick={() => handleDeleteComment(comment.CommentID, event.EventID)}
-                                      className="delete-comment-button"
-                                    >
-                                      Delete
-                                    </button>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p>No comments yet. Be the first to comment!</p>
+                                </div>
+                              )}
+                            </motion.div>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>You are not registered for any events yet.</p>
-            )}
-          </div>
-        )}
+                        </AnimatePresence>
+                      </div>
 
-        {/* Available Events Tab */}
-        {activeTab === "availableEvents" && (
-          <div>
-            <h3>Available Events:</h3>
-            {availableEvents.length > 0 ? (
-              <ul className="events-list">
-                {availableEvents.map((event) => (
-                  <li key={event.EventID} className="event-item">
-                    <div className="event-header">
-                      <h4>{event.Name}</h4>
-                      <span className="event-category">{event.Category}</span>
-                    </div>
-                    <div className="event-details">
-                      <p>
-                        <strong>Date:</strong> {formatDate(event.Date)}
-                      </p>
-                      <p>
-                        <strong>Time:</strong> {formatTime(event.Time)}
-                      </p>
-                      <p>
-                        <strong>Location:</strong> {event.LocationName}
-                      </p>
-                      <p>
-                        <strong>Coordinates:</strong> {event.Latitude}, {event.Longitude}
-                      </p>
-                      {event.Description && (
-                        <p>
-                          <strong>Description:</strong> {event.Description}
-                        </p>
-                      )}
-                      {event.RSOName && (
-                        <p>
-                          <strong>RSO:</strong> {event.RSOName}
-                        </p>
-                      )}
-                      {event.ContactEmail && (
-                        <p>
-                          <strong>Contact:</strong> {event.ContactEmail}
-                        </p>
-                      )}
-                      <p>
-                        <strong>Visibility:</strong> {event.Visibility}
-                      </p>
-
-                      {/* Event Rating */}
-                      {eventRatings[event.EventID] && (
-                        <div className="event-rating">
-                          <p>
-                            <strong>Rating:</strong>{" "}
-                            {renderStarRating(Number(eventRatings[event.EventID].averageRating))}(
-                            {Number(eventRatings[event.EventID].averageRating).toFixed(1)}/5 from{" "}
-                            {eventRatings[event.EventID].ratingCount} ratings)
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="event-actions">
-                        {isRegisteredForEvent(event.EventID) ? (
-                          <button onClick={() => handleUnregisterEvent(event.EventID)} className="unregister-button">
-                            Unregister
-                          </button>
-                        ) : (
-                          <button onClick={() => handleRegisterEvent(event.EventID)} className="register-button">
-                            Register
-                          </button>
-                        )}
-
-                        <button onClick={() => toggleEventComments(event.EventID)} className="comments-button">
-                          {selectedEvent === event.EventID ? "Hide Comments" : "Show Comments"}
+                      <div className="event-card-actions">
+                        <button
+                          onClick={() => handleUnregisterEvent(event.EventID)}
+                          className="action-button unregister-button"
+                        >
+                          <Minus size={16} />
+                          <span>Unregister</span>
                         </button>
-
-                        <button onClick={() => shareOnFacebook(event)} className="share-button">
-                          Share on Facebook
+                        <button
+                          onClick={() => toggleEventComments(event.EventID)}
+                          className="action-button comments-button"
+                        >
+                          <MessageSquare size={16} />
+                          <span>{selectedEvent === event.EventID ? "Hide Comments" : "Comments"}</span>
+                        </button>
+                        <button onClick={() => shareOnFacebook(event)} className="action-button share-button">
+                          <Share2 size={16} />
+                          <span>Share</span>
                         </button>
                       </div>
 
                       {/* Comments Section */}
-                      {selectedEvent === event.EventID && (
-                        <div className="comments-section">
-                          <h4>Comments and Ratings</h4>
+                      <AnimatePresence>
+                        {selectedEvent === event.EventID && (
+                          <motion.div
+                            className="comments-section"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <h4>Comments and Ratings</h4>
 
-                          {/* Add Comment Form (only if registered) */}
-                          {isRegisteredForEvent(event.EventID) && (
+                            {/* Add Comment Form */}
                             <div className="add-comment-form">
                               <h5>Add Your Comment</h5>
                               <div className="rating-input">
@@ -738,143 +744,426 @@ export default function AdminDashboard() {
                                 Submit
                               </button>
                             </div>
-                          )}
 
-                          {/* Comments List */}
-                          {eventComments[event.EventID] && eventComments[event.EventID].length > 0 ? (
-                            <ul className="comments-list">
-                              {eventComments[event.EventID].map((comment) => (
-                                <li key={comment.CommentID} className="comment-item">
-                                  <div className="comment-header">
-                                    <span className="comment-author">{comment.FirstName}</span>
-                                    <span className="comment-date">
-                                      {new Date(comment.CreatedAt).toLocaleDateString()}
+                            {/* Comments List */}
+                            {eventComments[event.EventID] && eventComments[event.EventID].length > 0 ? (
+                              <ul className="comments-list">
+                                {eventComments[event.EventID].map((comment) => (
+                                  <li key={comment.CommentID} className="comment-item">
+                                    <div className="comment-header">
+                                      <span className="comment-author">{comment.FirstName}</span>
+                                      <span className="comment-date">
+                                        {new Date(comment.CreatedAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    {comment.Rating && (
+                                      <div className="comment-rating">{renderStarRating(comment.Rating)}</div>
+                                    )}
+                                    <p className="comment-text">{comment.Comment}</p>
+
+                                    {/* Delete button (only for user's own comments) */}
+                                    {comment.UserID === userDetails?.userId && (
+                                      <button
+                                        onClick={() => handleDeleteComment(comment.CommentID, event.EventID)}
+                                        className="delete-comment-button"
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="no-comments">No comments yet. Be the first to comment!</p>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <Calendar size={48} />
+                  <p>You are not registered for any events yet.</p>
+                  <button className="action-button" onClick={() => setActiveTab("availableEvents")}>
+                    Browse Available Events
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Available Events Tab */}
+          {activeTab === "availableEvents" && (
+            <section className="content-section">
+              <h2 className="section-title">Available Events</h2>
+              {availableEvents.length > 0 ? (
+                <div className="events-grid">
+                  {availableEvents.map((event) => (
+                    <motion.div
+                      key={event.EventID}
+                      className="event-card"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="event-card-header" style={{ borderColor: getCategoryColor(event.Category) }}>
+                        <h3>{event.Name}</h3>
+                        <span className="event-category" style={{ backgroundColor: getCategoryColor(event.Category) }}>
+                          {event.Category}
+                        </span>
+                      </div>
+
+                      <div className="event-card-body">
+                        <div className="event-info">
+                          <div className="event-info-item">
+                            <Calendar size={16} />
+                            <span>{formatDate(event.Date)}</span>
+                          </div>
+                          <div className="event-info-item">
+                            <Clock size={16} />
+                            <span>{formatTime(event.Time)}</span>
+                          </div>
+                          <div className="event-info-item">
+                            <MapPin size={16} />
+                            <span>{event.LocationName}</span>
+                          </div>
+                        </div>
+
+                        {/* Expandable Details */}
+                        <button className="expand-button" onClick={() => toggleEventExpansion(event.EventID)}>
+                          {expandedEvents[event.EventID] ? (
+                            <>
+                              <ChevronUp size={16} />
+                              <span>Hide Details</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown size={16} />
+                              <span>Show Details</span>
+                            </>
+                          )}
+                        </button>
+
+                        <AnimatePresence>
+                          {expandedEvents[event.EventID] && (
+                            <motion.div
+                              className="event-details"
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.3 }}
+                            >
+                              {event.Description && (
+                                <div className="event-detail-item">
+                                  <Info size={16} />
+                                  <p>{event.Description}</p>
+                                </div>
+                              )}
+
+                              {event.RSOName && (
+                                <div className="event-detail-item">
+                                  <User size={16} />
+                                  <p>Organized by: {event.RSOName}</p>
+                                </div>
+                              )}
+
+                              {event.ContactEmail && (
+                                <div className="event-detail-item">
+                                  <Mail size={16} />
+                                  <p>Contact: {event.ContactEmail}</p>
+                                </div>
+                              )}
+
+                              <div className="event-detail-item">
+                                <MapPin size={16} />
+                                <p>
+                                  Coordinates: {event.Latitude}, {event.Longitude}
+                                </p>
+                              </div>
+
+                              <div className="event-detail-item">
+                                <Info size={16} />
+                                <p>Visibility: {event.Visibility}</p>
+                              </div>
+
+                              {/* Event Rating */}
+                              {eventRatings[event.EventID] && (
+                                <div className="event-rating">
+                                  <Star size={16} />
+                                  <div>
+                                    {renderStarRating(Number(eventRatings[event.EventID].averageRating))}
+                                    <span className="rating-text">
+                                      ({Number(eventRatings[event.EventID].averageRating).toFixed(1)}/5 from{" "}
+                                      {eventRatings[event.EventID].ratingCount} ratings)
                                     </span>
                                   </div>
-                                  {comment.Rating && (
-                                    <div className="comment-rating">{renderStarRating(comment.Rating)}</div>
-                                  )}
-                                  <p className="comment-text">{comment.Comment}</p>
-
-                                  {/* Delete button (only for user's own comments) */}
-                                  {comment.UserID === userDetails?.userId && (
-                                    <button
-                                      onClick={() => handleDeleteComment(comment.CommentID, event.EventID)}
-                                      className="delete-comment-button"
-                                    >
-                                      Delete
-                                    </button>
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            <p>No comments yet. Be the first to comment!</p>
+                                </div>
+                              )}
+                            </motion.div>
                           )}
-                        </div>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>No available events found.</p>
-            )}
-          </div>
-        )}
-
-        {/* My RSOs Tab */}
-        {activeTab === "myRSOs" && (
-          <div>
-            <h3>Your RSOs:</h3>
-            {adminRSOs.length > 0 ? (
-              <ul className="rso-list">
-                {adminRSOs.map((rso) => (
-                  <li key={rso.RSOID} className="rso-item">
-                    <span className="rso-name">{rso.Name}</span>
-                    <span className="rso-id">ID: {rso.RSOID}</span>
-
-                    {rso.isAdmin && (
-                      <div className="admin-controls">
-                        <input
-                          type="text"
-                          placeholder="New admin username"
-                          onChange={(e) => setSelectedNewAdmin(e.target.value)}
-                          className="admin-input"
-                        />
+                        </AnimatePresence>
                       </div>
-                    )}
 
-                    <button onClick={() => handleLeaveRSO(rso.Name, rso.isAdmin)} className="leave-button">
-                      {rso.isAdmin ? "Transfer & Leave" : "Leave"}
+                      <div className="event-card-actions">
+                        {isRegisteredForEvent(event.EventID) ? (
+                          <button
+                            onClick={() => handleUnregisterEvent(event.EventID)}
+                            className="action-button unregister-button"
+                          >
+                            <Minus size={16} />
+                            <span>Unregister</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleRegisterEvent(event.EventID)}
+                            className="action-button register-button"
+                          >
+                            <Plus size={16} />
+                            <span>Register</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => toggleEventComments(event.EventID)}
+                          className="action-button comments-button"
+                        >
+                          <MessageSquare size={16} />
+                          <span>{selectedEvent === event.EventID ? "Hide Comments" : "Comments"}</span>
+                        </button>
+                        <button onClick={() => shareOnFacebook(event)} className="action-button share-button">
+                          <Share2 size={16} />
+                          <span>Share</span>
+                        </button>
+                      </div>
+
+                      {/* Comments Section */}
+                      <AnimatePresence>
+                        {selectedEvent === event.EventID && (
+                          <motion.div
+                            className="comments-section"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                          >
+                            <h4>Comments and Ratings</h4>
+
+                            {/* Add Comment Form (only if registered) */}
+                            {isRegisteredForEvent(event.EventID) && (
+                              <div className="add-comment-form">
+                                <h5>Add Your Comment</h5>
+                                <div className="rating-input">
+                                  <label>Your Rating: </label>
+                                  <div className="star-rating-input">{renderStarRatingInput()}</div>
+                                </div>
+                                <textarea
+                                  value={newComment}
+                                  onChange={(e) => setNewComment(e.target.value)}
+                                  placeholder="Write your comment here..."
+                                  rows={3}
+                                ></textarea>
+                                <button
+                                  onClick={() => handleAddComment(event.EventID)}
+                                  className="submit-comment-button"
+                                >
+                                  Submit
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Comments List */}
+                            {eventComments[event.EventID] && eventComments[event.EventID].length > 0 ? (
+                              <ul className="comments-list">
+                                {eventComments[event.EventID].map((comment) => (
+                                  <li key={comment.CommentID} className="comment-item">
+                                    <div className="comment-header">
+                                      <span className="comment-author">{comment.FirstName}</span>
+                                      <span className="comment-date">
+                                        {new Date(comment.CreatedAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    {comment.Rating && (
+                                      <div className="comment-rating">{renderStarRating(comment.Rating)}</div>
+                                    )}
+                                    <p className="comment-text">{comment.Comment}</p>
+
+                                    {/* Delete button (only for user's own comments) */}
+                                    {comment.UserID === userDetails?.userId && (
+                                      <button
+                                        onClick={() => handleDeleteComment(comment.CommentID, event.EventID)}
+                                        className="delete-comment-button"
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="no-comments">No comments yet. Be the first to comment!</p>
+                            )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <Calendar size={48} />
+                  <p>No available events found.</p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* My RSOs Tab */}
+          {activeTab === "myRSOs" && (
+            <section className="content-section">
+              <h2 className="section-title">My RSOs</h2>
+
+              {adminRSOs.length > 0 ? (
+                <div className="rso-list">
+                  {adminRSOs.map((rso) => (
+                    <motion.div
+                      key={rso.RSOID}
+                      className="rso-card"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div className="rso-card-content">
+                        <h3 className="rso-name">{rso.Name}</h3>
+                        <span className="rso-id">ID: {rso.RSOID}</span>
+
+                        {rso.isAdmin && (
+                          <div className="admin-badge-container">
+                            <span className="admin-badge-small">Admin</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {rso.isAdmin ? (
+                        <div className="admin-controls">
+                          <input
+                            type="text"
+                            placeholder="New admin username"
+                            onChange={(e) => setSelectedNewAdmin(e.target.value)}
+                            className="admin-input"
+                          />
+                          <button onClick={() => handleLeaveRSO(rso.Name, true)} className="leave-button">
+                            Transfer & Leave
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => handleLeaveRSO(rso.Name, false)} className="leave-button">
+                          Leave
+                        </button>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <User size={48} />
+                  <p>You are not part of any RSOs yet.</p>
+                </div>
+              )}
+
+              {/* Join an RSO Form */}
+              <div className="rso-actions">
+                <form onSubmit={handleJoinRSO} className="join-rso-form">
+                  <h3>Join an RSO</h3>
+                  <div className="form-group">
+                    <input
+                      type="text"
+                      placeholder="Enter RSO Name"
+                      value={rsoName}
+                      onChange={(e) => setRsoName(e.target.value)}
+                      required
+                    />
+                    <button type="submit" className="join-button">
+                      <Plus size={16} />
+                      <span>Join RSO</span>
                     </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>You are not part of any RSOs.</p>
-            )}
+                  </div>
+                </form>
 
-            {/* Join an RSO Form */}
-            <form onSubmit={handleJoinRSO} className="join-rso-form">
-              <h3>Join an RSO</h3>
-              <div className="form-group">
-                <input
-                  type="text"
-                  placeholder="Enter RSO Name"
-                  value={rsoName}
-                  onChange={(e) => setRsoName(e.target.value)}
-                  required
-                />
-                <button type="submit" className="join-button">
-                  Join RSO
-                </button>
+                {/* Create an RSO */}
+                <div className="create-rso-section">
+                  <h3>Or Create a New RSO</h3>
+                  <Link to="/create-rso" className="create-button">
+                    <Plus size={16} />
+                    <span>Create an RSO</span>
+                  </Link>
+                </div>
               </div>
-            </form>
+            </section>
+          )}
 
-            {/* Create an RSO */}
-            <div className="create-rso-section">
-              <h3>Or Create a New RSO</h3>
-              <Link to="/create-rso">
-                <button className="create-button">Create an RSO</button>
-              </Link>
-            </div>
-          </div>
-        )}
+          {/* Create Event Tab */}
+          {activeTab === "createEvent" && (
+            <section className="content-section">
+              <h2 className="section-title">Create a New Event</h2>
 
-        {/* Create Event Tab */}
-        {activeTab === "createEvent" && (
-          <div className="create-event-section">
-            <h3>Create a New Event</h3>
-            <p>As an admin, you can create events for your university or RSO.</p>
+              <div className="admin-panel">
+                <div className="admin-panel-header">
+                  <Settings size={24} />
+                  <h3>Event Management</h3>
+                </div>
 
-            <div className="admin-actions">
-              <Link to="/create-event">
-                <button className="create-event-button">Create Event Form</button>
-              </Link>
-            </div>
+                <div className="admin-panel-content">
+                  <p>As an admin, you can create events for your university or RSO.</p>
 
-            <div className="event-management-info">
-              <h4>Event Management Guidelines:</h4>
-              <ul>
-                <li>Public events need to be approved by the super admin</li>
-                <li>Private events are visible to students at your university</li>
-                <li>RSO events are visible only to members of your RSO</li>
-                <li>Provide accurate location information for all events</li>
-                <li>Include contact information for event inquiries</li>
-              </ul>
-            </div>
-          </div>
-        )}
+                  <div className="event-types">
+                    <div className="event-type-card">
+                      <h4>Public Events</h4>
+                      <p>Visible to everyone, requires super admin approval</p>
+                    </div>
+
+                    <div className="event-type-card">
+                      <h4>Private Events</h4>
+                      <p>Visible only to students at your university</p>
+                    </div>
+
+                    <div className="event-type-card">
+                      <h4>RSO Events</h4>
+                      <p>Visible only to members of your RSO</p>
+                    </div>
+                  </div>
+
+                  <div className="admin-actions">
+                    <Link to="/create-event" className="create-event-button">
+                      <PlusCircle size={18} />
+                      <span>Create New Event</span>
+                    </Link>
+                  </div>
+
+                  <div className="event-management-info">
+                    <h4>Event Management Guidelines:</h4>
+                    <ul>
+                      <li>Provide accurate location information for all events</li>
+                      <li>Include contact information for event inquiries</li>
+                      <li>Set appropriate visibility based on the event type</li>
+                      <li>Ensure event descriptions are clear and informative</li>
+                      <li>Add relevant categories to help users find your events</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+        </main>
       </div>
 
-      {/* Logout button */}
-      <button onClick={handleLogout} className="logout-button">
-        Logout
-      </button>
-
       {/* Display errors if any */}
-      {error && <p className="error">{error}</p>}
+      {error && (
+        <div className="error-toast">
+          <p>{error}</p>
+          <button onClick={() => setError(null)}>Dismiss</button>
+        </div>
+      )}
     </div>
   )
 }
