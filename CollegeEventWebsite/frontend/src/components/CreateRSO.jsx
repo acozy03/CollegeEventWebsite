@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom"
 import "../dashboard.css"
 
 // Import icons
-import { Users, User, ChevronLeft, Save, AlertTriangle, LogOut, BookOpen, UserPlus, Book } from "react-feather"
+import { Users, User, ChevronLeft, AlertTriangle, LogOut, BookOpen, UserPlus } from "react-feather"
 
 const API_BASE_URL = "http://localhost:5050/api/users"
 
@@ -74,6 +74,19 @@ export default function CreateRSO() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
+    // Validate form
+    if (
+      !rsoData.name ||
+      !rsoData.member1 ||
+      !rsoData.member2 ||
+      !rsoData.member3 ||
+      !rsoData.member4 ||
+      !rsoData.adminUsername
+    ) {
+      setError("All fields are required")
+      return
+    }
+
     // Combine all members into an array
     const members = [rsoData.member1, rsoData.member2, rsoData.member3, rsoData.member4, rsoData.adminUsername]
 
@@ -87,7 +100,7 @@ export default function CreateRSO() {
         },
         body: JSON.stringify({
           name: rsoData.name,
-          members: members.filter((member) => member.trim() !== ""), // Remove empty values
+          members: members,
           adminUsername: rsoData.adminUsername,
         }),
       })
@@ -98,7 +111,9 @@ export default function CreateRSO() {
       }
 
       const data = await response.json()
-      alert(`RSO created successfully! RSO ID: ${data.rsoId}`)
+
+      // Show success message
+      alert(`RSO creation request sent to super admin! RSO ID: ${data.rsoId}`)
 
       // Reset form
       setRsoData({
@@ -109,6 +124,8 @@ export default function CreateRSO() {
         member4: "",
         adminUsername: "",
       })
+
+      setError(null)
     } catch (err) {
       console.error(err)
       setError(err.message || "An error occurred while creating the RSO.")
@@ -288,7 +305,6 @@ export default function CreateRSO() {
 
                 <div className="form-actions">
                   <button type="submit" className="submit-button">
-                    
                     <span>Create RSO</span>
                   </button>
                 </div>

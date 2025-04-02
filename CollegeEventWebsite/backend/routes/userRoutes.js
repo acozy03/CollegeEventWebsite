@@ -1,6 +1,6 @@
 import express from "express"
 import { authenticate } from "./auth.js"
-import  connection  from "../db/connection.js"
+import connection from "../db/connection.js"
 import bodyParser from "body-parser" // Import the MySQL connection
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
@@ -23,6 +23,7 @@ const getDomainFromEmail = (email) => {
 
 recordRoutes.post("/create-rso", authenticate, async (req, res) => {
   const { name, members, adminUsername } = req.body // `members` is an array of usernames
+  const userId = req.user.userId // Get the current user's ID
 
   // **Step 1: Basic Validation for Input**
   if (!name || !members || members.length !== 5 || !adminUsername) {
@@ -71,14 +72,23 @@ recordRoutes.post("/create-rso", authenticate, async (req, res) => {
     }
     const adminId = adminUser.UserID
 
+    // Clear the temporary table
+    await connection.promise().query("DELETE FROM temp_rso_members")
+
+    // Insert member IDs into the temporary table (excluding admin who will be added by the trigger)
+    const memberUsers = userResults.filter((user) => user.Username !== adminUsername)
+    for (const user of memberUsers) {
+      await connection.promise().query("INSERT INTO temp_rso_members (UserID) VALUES (?)", [user.UserID])
+    }
+
+    // Set the current user ID for the trigger
+    await connection.promise().query("SET @current_user_id = ?", [userId])
+
     // **Step 4: Insert RSO**
-    const insertRsoQuery = `INSERT INTO rsos (Name, UniversityID, PendingAdminID, Approved, MemberCount) VALUES (?, ?, ?, FALSE, 0)`
+    // Note: We don't need to set MemberCount here as it's handled by the trigger
+    const insertRsoQuery = `INSERT INTO rsos (Name, UniversityID, PendingAdminID) VALUES (?, ?, ?)`
     const [insertResult] = await connection.promise().query(insertRsoQuery, [name, universityId, adminId])
     const rsoId = insertResult.insertId
-
-    // **Step 5: Insert Members**
-    const memberValues = userResults.map((user) => [user.UserID, rsoId])
-    await connection.promise().query("INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES ?", [memberValues])
     await connection.promise().query("UPDATE rsos SET MemberCount = MemberCount + 5 WHERE RSOID = ?", [rsoId])
     // **Commit Transaction**
     await connection.promise().query("COMMIT")
@@ -100,85 +110,125 @@ recordRoutes.route("/leave-rso").post(authenticate, async (req, res) => {
   const { RSOName, newAdminUsername } = req.body
   const userId = req.user.userId
 
+  console.log(`User ${userId} is attempting to leave RSO: ${RSOName}`)
+
   if (!RSOName) {
+    console.log("Error: RSO Name is required")
     return res.status(400).json({ error: "RSO Name is required" })
   }
 
   try {
     await connection.promise().query("START TRANSACTION")
+    console.log("Transaction started for leaving RSO")
 
     // **Step 1: Get RSO ID & Check Membership**
+    console.log(`Fetching RSO details for: ${RSOName}`)
     const [rsoResults] = await connection
       .promise()
-      .query("SELECT RSOID, AdminID, MemberCount FROM rsos WHERE Name = ?", [RSOName])
+      .query("SELECT RSOID, AdminID, MemberCount, Approved FROM rsos WHERE Name = ?", [RSOName])
 
     if (rsoResults.length === 0) {
+      console.log(`RSO not found: ${RSOName}`)
       await connection.promise().query("ROLLBACK")
       return res.status(404).json({ error: "RSO not found" })
     }
 
-    const { RSOID, AdminID, MemberCount } = rsoResults[0]
+    const { RSOID, AdminID, MemberCount, Approved } = rsoResults[0]
+    console.log(
+      `RSO found: ID=${RSOID}, AdminID=${AdminID}, Current MemberCount=${MemberCount}, Approved=${Approved ? "Yes" : "No"}`,
+    )
 
     // **Step 2: Ensure the user is a member**
+    console.log(`Checking if user ${userId} is a member of RSO ${RSOID}`)
     const [membershipResults] = await connection
       .promise()
       .query("SELECT * FROM rso_membership WHERE UserID = ? AND RSOID = ?", [userId, RSOID])
 
     if (membershipResults.length === 0) {
+      console.log(`User ${userId} is not a member of RSO ${RSOID}`)
       await connection.promise().query("ROLLBACK")
       return res.status(400).json({ error: "User is not a member of this RSO." })
     }
+    console.log(`User ${userId} is confirmed as a member of RSO ${RSOID}`)
 
     // **Step 3: If user is the admin, transfer admin rights**
     if (userId === AdminID) {
+      console.log(`User ${userId} is the admin of RSO ${RSOID} and needs to transfer admin rights`)
+
       if (!newAdminUsername) {
+        console.log("Error: Admin must select a new admin before leaving")
         await connection.promise().query("ROLLBACK")
         return res.status(400).json({ error: "Admin must select a new admin before leaving." })
       }
 
       // **Find the new admin's UserID**
+      console.log(`Looking up new admin username: ${newAdminUsername}`)
       const [newAdminResults] = await connection
         .promise()
         .query("SELECT UserID FROM users WHERE Username = ?", [newAdminUsername])
 
       if (newAdminResults.length === 0) {
+        console.log(`New admin username not found: ${newAdminUsername}`)
         await connection.promise().query("ROLLBACK")
         return res.status(400).json({ error: "New admin username not found." })
       }
 
       const newAdminID = newAdminResults[0].UserID
+      console.log(`New admin UserID: ${newAdminID}`)
 
       // **Ensure the new admin is a member of the RSO**
+      console.log(`Checking if new admin ${newAdminID} is a member of RSO ${RSOID}`)
       const [isMember] = await connection
         .promise()
         .query("SELECT * FROM rso_membership WHERE UserID = ? AND RSOID = ?", [newAdminID, RSOID])
 
       if (isMember.length === 0) {
+        console.log(`Error: Selected new admin ${newAdminID} is not a member of RSO ${RSOID}`)
         await connection.promise().query("ROLLBACK")
         return res.status(400).json({ error: "Selected new admin must be a member of this RSO." })
       }
 
       // ✅ **Transfer admin rights in `rsos` table**
+      console.log(`Transferring admin rights from ${userId} to ${newAdminID}`)
       await connection.promise().query("UPDATE rsos SET AdminID = ? WHERE RSOID = ?", [newAdminID, RSOID])
 
       // ✅ **Update roles in `users` table**
+      console.log(`Updating user roles: ${newAdminID} -> Admin, ${userId} -> Student`)
       await connection.promise().query("UPDATE users SET Role = 'Admin' WHERE UserID = ?", [newAdminID])
-
       await connection.promise().query("UPDATE users SET Role = 'Student' WHERE UserID = ?", [userId])
+      console.log("Admin transfer completed successfully")
     }
 
     // **Step 4: Remove the user from `rso_membership`**
+    console.log(`Removing user ${userId} from RSO ${RSOID}`)
     await connection.promise().query("DELETE FROM rso_membership WHERE UserID = ? AND RSOID = ?", [userId, RSOID])
 
-    // **Step 5: Decrement `MemberCount`**
-    await connection.promise().query("UPDATE rsos SET MemberCount = MemberCount - 1 WHERE RSOID = ?", [RSOID])
+    // Update member count
+    const newMemberCount = MemberCount - 1
+    console.log(`Updating member count: ${MemberCount} -> ${newMemberCount}`)
+    await connection.promise().query("UPDATE rsos SET MemberCount = ? WHERE RSOID = ?", [newMemberCount, RSOID])
 
-    // **Step 6: If no members remain, delete the RSO**
-    if (MemberCount <= 1) {
+    // Check if RSO should be deactivated
+    if (newMemberCount < 5 && Approved) {
+      console.log(
+        `RSO ${RSOID} member count is now below 5 (${newMemberCount}). Changing approval status from Approved to Pending.`,
+      )
+      await connection.promise().query("UPDATE rsos SET Approved = 0 WHERE RSOID = ?", [RSOID])
+      console.log(`RSO ${RSOID} is now set to Pending status`)
+    } else {
+      console.log(
+        `RSO ${RSOID} still has ${newMemberCount} members, minimum required is 5. Current status remains: ${Approved ? "Approved" : "Pending"}`,
+      )
+    }
+
+    // **Step 5: If no members remain, delete the RSO**
+    if (newMemberCount <= 0) {
+      console.log(`RSO ${RSOID} has no members left. Deleting the RSO.`)
       await connection.promise().query("DELETE FROM rsos WHERE RSOID = ?", [RSOID])
     }
 
     await connection.promise().query("COMMIT")
+    console.log(`Transaction committed. User ${userId} has successfully left RSO ${RSOID} (${RSOName})`)
 
     res.json({ message: `Successfully left RSO: ${RSOName}` })
   } catch (error) {
@@ -401,52 +451,96 @@ recordRoutes.route("/join-rso").post(authenticate, async (req, res) => {
   const { RSOName } = req.body // Extract the RSO name from request
   const userId = req.user.userId // Get the logged-in user's ID
 
+  console.log(`User ${userId} is attempting to join RSO: ${RSOName}`)
+
   if (!RSOName) {
+    console.log("Error: RSO Name is required")
     return res.status(400).json({ error: "RSO Name is required" })
   }
 
   try {
     await connection.promise().query("START TRANSACTION")
+    console.log("Transaction started for joining RSO")
 
     // **Step 1: Find the RSO ID by Name**
+    console.log(`Searching for RSO: ${RSOName}`)
     const [rsoResults] = await connection
       .promise()
-      .query("SELECT RSOID, UniversityID FROM rsos WHERE Name = ?", [RSOName])
+      .query("SELECT RSOID, UniversityID, MemberCount, Approved FROM rsos WHERE Name = ?", [RSOName])
 
     if (rsoResults.length === 0) {
       await connection.promise().query("ROLLBACK")
+      console.log(`RSO not found: ${RSOName}`)
       return res.status(404).json({ error: "RSO not found" })
     }
 
-    const { RSOID, UniversityID } = rsoResults[0]
+    const { RSOID, UniversityID, MemberCount, Approved } = rsoResults[0]
+    console.log(
+      `RSO Found: ID=${RSOID}, UniversityID=${UniversityID}, Current Members=${MemberCount}, Status=${Approved ? "Approved" : "Pending"}`,
+    )
 
     // **Step 2: Ensure the user is in the same university**
-    const [userResults] = await connection.promise().query("SELECT UniversityID FROM users WHERE UserID = ?", [userId])
+    console.log(`Checking user's university for UserID: ${userId}`)
+    const [userResults] = await connection
+      .promise()
+      .query("SELECT UniversityID, Username FROM users WHERE UserID = ?", [userId])
 
     if (userResults.length === 0) {
       await connection.promise().query("ROLLBACK")
+      console.log(`User not found: ${userId}`)
       return res.status(404).json({ error: "User not found" })
     }
 
-    if (userResults[0].UniversityID !== UniversityID) {
+    const userUniversityID = userResults[0].UniversityID
+    const username = userResults[0].Username
+    console.log(`User ${userId} (${username}) belongs to UniversityID: ${userUniversityID}`)
+
+    if (userUniversityID !== UniversityID) {
       await connection.promise().query("ROLLBACK")
+      console.log(
+        `User ${userId} is not in the same university as RSO ${RSOID}. User: ${userUniversityID}, RSO: ${UniversityID}`,
+      )
       return res.status(400).json({ error: "User must belong to the same university as the RSO." })
     }
+    console.log(`University match confirmed for user ${userId} and RSO ${RSOID}`)
 
     // **Step 3: Insert the user into `rso_membership`**
+    console.log(`Attempting to insert UserID=${userId} into RSOID=${RSOID}`)
     const insertQuery = "INSERT IGNORE INTO rso_membership (UserID, RSOID) VALUES (?, ?)"
-
+    console.log(`Executing SQL: ${insertQuery.replace("?", userId).replace("?", RSOID)}`)
     const [insertResult] = await connection.promise().query(insertQuery, [userId, RSOID])
 
     if (insertResult.affectedRows === 0) {
       await connection.promise().query("ROLLBACK")
+      console.log(`User ${userId} is already a member of RSO ${RSOID}`)
       return res.status(400).json({ error: "User is already a member of this RSO." })
     }
 
+    console.log(`User ${userId} successfully joined RSO ${RSOID}`)
+
     // **Step 4: Increment the MemberCount in `rsos`**
-    await connection.promise().query("UPDATE rsos SET MemberCount = MemberCount + 1 WHERE RSOID = ?", [RSOID])
+    const newMemberCount = MemberCount + 1
+    console.log(`Updating member count: ${MemberCount} -> ${newMemberCount}`)
+    await connection.promise().query("UPDATE rsos SET MemberCount = ? WHERE RSOID = ?", [newMemberCount, RSOID])
+
+    // **Step 5: Check if MemberCount is 5 or above, and update Approved flag if necessary**
+    if (newMemberCount >= 5 && !Approved) {
+      console.log(
+        `RSO ${RSOID} now has ${newMemberCount} members (minimum 5 required). Changing status from Pending to Approved!`,
+      )
+      await connection.promise().query("UPDATE rsos SET Approved = 1 WHERE RSOID = ?", [RSOID])
+      console.log(`RSO ${RSOID} is now ACTIVATED and Approved!`)
+    } else {
+      console.log(
+        `RSO ${RSOID} now has ${newMemberCount} members. Status remains: ${Approved ? "Approved" : "Pending"}`,
+      )
+      if (!Approved && newMemberCount < 5) {
+        console.log(`Note: RSO needs ${5 - newMemberCount} more members to become approved`)
+      }
+    }
 
     await connection.promise().query("COMMIT")
+    console.log(`Transaction committed successfully for User ${userId} joining RSO ${RSOID}`)
 
     res.json({ message: `Successfully joined RSO: ${RSOName}`, RSOID })
   } catch (error) {

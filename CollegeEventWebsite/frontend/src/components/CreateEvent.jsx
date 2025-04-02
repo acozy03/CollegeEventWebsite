@@ -46,6 +46,7 @@ export default function CreateEvent() {
   const [adminRSOs, setAdminRSOs] = useState([]) // List of RSOs the admin manages
   const [selectedRSOID, setSelectedRSOID] = useState("") // Selected RSO ID
   const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
   const [userDetails, setUserDetails] = useState(null)
 
   // Fetch user details
@@ -137,11 +138,20 @@ export default function CreateEvent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError(null)
+    setSuccess(null)
 
-    // Ensure RSO selection if the event is an RSO event
-    if (eventData.Visibility === "rso" && adminRSOs.length > 1 && !selectedRSOID) {
-      alert("You are an admin of multiple RSOs. Please select one before submitting.")
-      return
+    // Validate RSO selection if the event is an RSO event
+    if (eventData.Visibility === "rso") {
+      if (adminRSOs.length === 0) {
+        setError("You are not an admin of any RSO. You cannot create RSO events.")
+        return
+      }
+
+      if (adminRSOs.length > 0 && !selectedRSOID) {
+        setError("Please select an RSO for this event.")
+        return
+      }
     }
 
     try {
@@ -160,14 +170,11 @@ export default function CreateEvent() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        if (errorData.adminRSOs) {
-          alert(`You are an admin of multiple RSOs. Please select one: ${errorData.adminRSOs.join(", ")}`)
-        }
         throw new Error(errorData.error || "Failed to create event")
       }
 
       const data = await response.json()
-      alert(`Event created successfully! Event ID: ${data.eventId}`)
+      setSuccess(`Event created successfully! Event ID: ${data.eventId}`)
 
       // Reset event data
       setEventData({
@@ -185,7 +192,7 @@ export default function CreateEvent() {
       })
 
       setMarker({ lat: 28.5, lng: -81.205 })
-      setError(null)
+      setSelectedRSOID("")
     } catch (err) {
       setError(err.message || "An error occurred while creating the event.")
     }
@@ -233,7 +240,7 @@ export default function CreateEvent() {
       </header>
 
       <div className="dashboard-content">
-        <main className="main-content create-event-page">
+        <main className="main-content create-event-page full-width">
           <div className="back-button-container">
             <button onClick={goBack} className="back-button">
               <ChevronLeft size={18} />
@@ -248,6 +255,13 @@ export default function CreateEvent() {
               <div className="error-alert">
                 <AlertTriangle size={18} />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="success-alert">
+                <Info size={18} />
+                <span>{success}</span>
               </div>
             )}
 
@@ -371,6 +385,9 @@ export default function CreateEvent() {
                         setEventData({ ...eventData, Visibility: e.target.value })
                         if (e.target.value !== "rso") {
                           setSelectedRSOID("") // Clear RSO selection if it's not an RSO event
+                        } else if (adminRSOs.length === 1) {
+                          // Auto-select if admin is only in one RSO
+                          setSelectedRSOID(adminRSOs[0].RSOID)
                         }
                       }}
                     >
@@ -378,10 +395,30 @@ export default function CreateEvent() {
                       <option value="private">Private (Visible to University Only)</option>
                       <option value="rso">RSO Event (Visible to RSO Members Only)</option>
                     </select>
+
+                    {eventData.Visibility === "rso" && adminRSOs.length === 0 && (
+                      <p className="input-help error-text">
+                        You are not an admin of any RSO. You cannot create RSO events.
+                      </p>
+                    )}
+
+                    {eventData.Visibility === "public" && (
+                      <p className="input-help">
+                        Public events require approval from a super admin before they become visible.
+                      </p>
+                    )}
+
+                    {eventData.Visibility === "private" && (
+                      <p className="input-help">Private events are only visible to members of your university.</p>
+                    )}
+
+                    {eventData.Visibility === "rso" && adminRSOs.length > 0 && (
+                      <p className="input-help">RSO events are only visible to members of the selected RSO.</p>
+                    )}
                   </div>
 
-                  {/* Show RSO selection only if "RSO Event" is selected */}
-                  {eventData.Visibility === "rso" && adminRSOs.length > 1 && (
+                  {/* Show RSO selection when "RSO Event" is selected */}
+                  {eventData.Visibility === "rso" && adminRSOs.length > 0 && (
                     <div className="form-group">
                       <label htmlFor="rsoSelect">
                         <Users size={16} />
@@ -391,15 +428,16 @@ export default function CreateEvent() {
                         id="rsoSelect"
                         value={selectedRSOID}
                         onChange={(e) => setSelectedRSOID(e.target.value)}
-                        required
+                        required={eventData.Visibility === "rso"}
                       >
                         <option value="">Select an RSO</option>
                         {adminRSOs.map((rso) => (
                           <option key={rso.RSOID} value={rso.RSOID}>
-                            {rso.Name} (ID: {rso.RSOID})
+                            {rso.Name}
                           </option>
                         ))}
                       </select>
+                      <p className="input-help">You can only create events for RSOs where you are an admin.</p>
                     </div>
                   )}
 
