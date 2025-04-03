@@ -31,7 +31,7 @@ Universities host numerous events each semester, often organized by student grou
 - **Event Visibility**: Events can be marked as public, private (university-specific), or RSO-specific.
 - **RSO Management**: Students can join existing RSOs or create new ones if they meet the requirements (at least 4 students with the same university email domain).
 - **Event Interactions**: Students can comment, rate, and update their comments on events.
-- **Social Network Integration**: Users can share events on social media platforms such as Facebook or Google.
+- **Social Network Integration**: Users can share events on Facebook.
 - **Event Approval**: Super Admins must approve events that are created without an RSO affiliation (public events).
 
 ### Technologies Used
